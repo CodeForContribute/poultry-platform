@@ -191,3 +191,40 @@ spring:
 
   flyway:
     clean-disabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+logging:
+  level:
+    root: INFO
+    com.poultry: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql: WARN
+
+---
+spring:
+  config:
+    activate:
+      on-profile: kubernetes
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,redis
+
+logging:
+  level:
+    root: INFO
+    com.poultry: INFO
+    org.hibernate.SQL: WARN
