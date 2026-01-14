@@ -1,7 +1,10 @@
 package com.poultry.verification.repository;
 
 import com.poultry.verification.entity.SellerVerification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -18,4 +21,9 @@ public interface SellerVerificationRepository extends JpaRepository<SellerVerifi
     List<SellerVerification> findByStatus(SellerVerification.VerificationStatus status);
 
     List<SellerVerification> findBySellerIdAndStatus(UUID sellerId, SellerVerification.VerificationStatus status);
+
+  Page<SellerVerification> findByStatusIn(List<SellerVerification.VerificationStatus> statuses, Pageable pageable);
+
+  @Query("SELECT COUNT(v) FROM SellerVerification v WHERE v.status IN ('PENDING', 'UNDER_REVIEW')")
+  Long countPendingVerifications();
 }

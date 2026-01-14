@@ -33,4 +33,6 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     long countSuccessfulPaymentsForOrder(UUID orderId);
 
     boolean existsByGatewayPaymentId(String gatewayPaymentId);
+
+  List<Payment> findByCreatedAtBetween(Instant start, Instant end);
 }

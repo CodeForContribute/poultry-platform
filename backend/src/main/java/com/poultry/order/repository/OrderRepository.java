@@ -55,4 +55,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             "WHERE o.status = 'DELIVERED' AND o.createdAt BETWEEN :start AND :end " +
             "GROUP BY o.sellerId")
     List<Object[]> getSellerOrderStats(Instant start, Instant end);
+
+  Page<Order> findByStatus(Order.OrderStatus status, Pageable pageable);
 }

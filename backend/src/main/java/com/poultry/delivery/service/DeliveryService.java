@@ -144,20 +144,24 @@ public class DeliveryService {
             throw BusinessException.invalidState("OTP must be verified before completing delivery");
         }
 
-        delivery.setStatus(Delivery.DeliveryStatus.DELIVERED);
+      UUID orderId = delivery.getOrderId();
+      UUID agentId = delivery.getAgentId();
+
+      delivery.setStatus(Delivery.DeliveryStatus.DELIVERED);
         delivery.setDeliveredAt(Instant.now());
         delivery.setPhotoProofUrl(photoProofUrl);
         delivery = deliveryRepository.save(delivery);
 
         // Update order status
-        Order order = orderRepository.findById(delivery.getOrderId())
-                .orElseThrow(() -> BusinessException.notFound("Order", delivery.getOrderId()));
+      Order order = orderRepository.findById(orderId)
+                                   .orElseThrow(() -> BusinessException.notFound("Order", orderId));
         order.setStatus(Order.OrderStatus.DELIVERED);
         orderRepository.save(order);
 
         // Release agent
-        if (delivery.getAgentId() != null) {
-            DeliveryAgent agent = deliveryAgentRepository.findById(delivery.getAgentId()).orElse(null);
+      if (agentId != null)
+      {
+        DeliveryAgent agent = deliveryAgentRepository.findById(agentId).orElse(null);
             if (agent != null) {
                 agent.setIsAvailable(true);
                 agent.incrementDeliveryCount(true);

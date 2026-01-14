@@ -232,7 +232,135 @@ public class NotificationService {
         }
     }
 
-    /**
+  /**
+   * Send order notification (called from Kafka consumer)
+   */
+  @Async("notificationExecutor")
+  public void sendOrderNotification(UUID recipientId, String recipientType, String notificationType,
+                                    String orderNumber, BigDecimal amount)
+  {
+    log.info("Sending order notification: type={}, recipient={}:{}", notificationType, recipientType, recipientId);
+
+    Map<String, String> variables = new HashMap<>();
+    variables.put("order_number", orderNumber);
+    variables.put("amount", amount != null ? amount.toPlainString() : "0");
+
+    try
+    {
+      SendNotificationRequest request = SendNotificationRequest.builder()
+                                                               .templateCode(notificationType + "_" + recipientType)
+                                                               .recipientType(recipientType)
+                                                               .recipientId(recipientId)
+                                                               .channel(Notification.Channel.SMS)
+                                                               .priority(Notification.Priority.HIGH)
+                                                               .variables(variables)
+                                                               .referenceType("ORDER")
+                                                               .build();
+
+      sendNotification(request);
+    }
+    catch (Exception e)
+    {
+      log.error("Failed to send order notification: {}", e.getMessage());
+    }
+  }
+
+  /**
+   * Send payment notification (called from Kafka consumer)
+   */
+  @Async("notificationExecutor")
+  public void sendPaymentNotification(UUID buyerId, String notificationType, BigDecimal amount, String reference)
+  {
+    log.info("Sending payment notification: type={}, buyerId={}", notificationType, buyerId);
+
+    Map<String, String> variables = new HashMap<>();
+    variables.put("amount", amount != null ? amount.toPlainString() : "0");
+    variables.put("reference", reference != null ? reference : "");
+
+    try
+    {
+      SendNotificationRequest request = SendNotificationRequest.builder()
+                                                               .templateCode(notificationType)
+                                                               .recipientType("BUYER")
+                                                               .recipientId(buyerId)
+                                                               .channel(Notification.Channel.SMS)
+                                                               .priority(Notification.Priority.HIGH)
+                                                               .variables(variables)
+                                                               .referenceType("PAYMENT")
+                                                               .build();
+
+      sendNotification(request);
+    }
+    catch (Exception e)
+    {
+      log.error("Failed to send payment notification: {}", e.getMessage());
+    }
+  }
+
+  /**
+   * Send delivery notification (called from Kafka consumer)
+   */
+  @Async("notificationExecutor")
+  public void sendDeliveryNotification(UUID orderId, String notificationType, String status)
+  {
+    log.info("Sending delivery notification: type={}, orderId={}", notificationType, orderId);
+
+    Map<String, String> variables = new HashMap<>();
+    variables.put("status", status != null ? status : "");
+
+    try
+    {
+      SendNotificationRequest request = SendNotificationRequest.builder()
+                                                               .templateCode(notificationType)
+                                                               .recipientType("BUYER")
+                                                               .recipientId(orderId) // This would need to be resolved to buyer ID
+                                                               .channel(Notification.Channel.SMS)
+                                                               .priority(Notification.Priority.MEDIUM)
+                                                               .variables(variables)
+                                                               .referenceType("DELIVERY")
+                                                               .referenceId(orderId)
+                                                               .build();
+
+      sendNotification(request);
+    }
+    catch (Exception e)
+    {
+      log.error("Failed to send delivery notification: {}", e.getMessage());
+    }
+  }
+
+  /**
+   * Send settlement notification (called from Kafka consumer)
+   */
+  @Async("notificationExecutor")
+  public void sendSettlementNotification(UUID sellerId, String notificationType, BigDecimal amount)
+  {
+    log.info("Sending settlement notification: type={}, sellerId={}", notificationType, sellerId);
+
+    Map<String, String> variables = new HashMap<>();
+    variables.put("amount", amount != null ? amount.toPlainString() : "0");
+
+    try
+    {
+      SendNotificationRequest request = SendNotificationRequest.builder()
+                                                               .templateCode(notificationType)
+                                                               .recipientType("SELLER")
+                                                               .recipientId(sellerId)
+                                                               .channel(Notification.Channel.SMS)
+                                                               .priority(Notification.Priority.HIGH)
+                                                               .variables(variables)
+                                                               .referenceType("SETTLEMENT")
+                                                               .build();
+
+      sendNotification(request);
+    }
+    catch (Exception e)
+    {
+      log.error("Failed to send settlement notification: {}", e.getMessage());
+    }
+  }
+
+  /**
      * Notify seller about new paid order
      */
     @Transactional

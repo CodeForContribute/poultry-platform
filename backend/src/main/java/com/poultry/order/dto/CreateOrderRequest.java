@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -92,19 +93,19 @@ public class CreateOrderRequest {
         private String contactPhone;
 
         public Map<String, Object> toMap() {
-            return Map.of(
-                    "label", label != null ? label : "",
-                    "line1", line1,
-                    "line2", line2 != null ? line2 : "",
-                    "city", city,
-                    "state", state,
-                    "pincode", pincode,
-                    "landmark", landmark != null ? landmark : "",
-                    "latitude", latitude != null ? latitude : 0,
-                    "longitude", longitude != null ? longitude : 0,
-                    "contactName", contactName,
-                    "contactPhone", contactPhone
-            );
+          Map<String, Object> map = new HashMap<>();
+          map.put("label", label != null ? label : "");
+          map.put("line1", line1);
+          map.put("line2", line2 != null ? line2 : "");
+          map.put("city", city);
+          map.put("state", state);
+          map.put("pincode", pincode);
+          map.put("landmark", landmark != null ? landmark : "");
+          map.put("latitude", latitude != null ? latitude : 0);
+          map.put("longitude", longitude != null ? longitude : 0);
+          map.put("contactName", contactName);
+          map.put("contactPhone", contactPhone);
+          return map;
         }
     }
 }

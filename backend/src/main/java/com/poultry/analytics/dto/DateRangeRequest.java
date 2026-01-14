@@ -39,4 +39,11 @@ public class DateRangeRequest {
         LocalDate today = LocalDate.now();
         return DateRangeRequest.builder().startDate(today.minusDays(days)).endDate(today).build();
     }
+
+  public static DateRangeRequest thisMonth()
+  {
+    LocalDate today = LocalDate.now();
+    LocalDate firstDayOfMonth = today.withDayOfMonth(1);
+    return DateRangeRequest.builder().startDate(firstDayOfMonth).endDate(today).build();
+  }
 }

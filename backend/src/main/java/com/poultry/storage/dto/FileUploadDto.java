@@ -18,7 +18,7 @@ public class FileUploadDto {
     private String originalFilename;
     private String contentType;
     private Long sizeBytes;
-    private FileUpload.ReferenceType referenceType;
+  private String referenceType;
     private UUID referenceId;
     private Boolean isPublic;
     private String presignedUrl;
