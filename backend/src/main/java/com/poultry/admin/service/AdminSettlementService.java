@@ -2,7 +2,10 @@ package com.poultry.admin.service;
 
 import com.poultry.admin.dto.SettlementListDto;
 import com.poultry.common.exception.BusinessException;
+import com.poultry.common.service.EncryptionService;
 import com.poultry.ledger.service.LedgerService;
+import com.poultry.payment.service.RazorpayService;
+import com.poultry.product.entity.Seller;
 import com.poultry.product.repository.SellerRepository;
 import com.poultry.settlement.entity.Settlement;
 import com.poultry.settlement.entity.Settlement.SettlementStatus;
@@ -113,15 +116,127 @@ public class AdminSettlementService
       throw new BusinessException("Settlement must be approved before initiation", "INVALID_STATUS", HttpStatus.BAD_REQUEST);
     }
 
+    // Get seller details for payout
+    Seller seller = sellerRepository.findById(settlement.getSellerId())
+        .orElseThrow(() -> new BusinessException("Seller not found", "SELLER_NOT_FOUND", HttpStatus.NOT_FOUND));
+
     settlement.setStatus(SettlementStatus.PROCESSING);
     settlement.setInitiatedAt(Instant.now());
-
     settlement = settlementRepository.save(settlement);
 
-    // TODO: Trigger actual payout via Razorpay/bank API
+    // Trigger actual payout via Razorpay
+    try {
+      // Create or get existing fund account for seller
+      String fundAccountId = getOrCreateFundAccount(seller);
+
+      // Create payout
+      Map<String, Object> payoutResponse = razorpayService.createPayout(
+          fundAccountId,
+          settlement.getNetAmount(),
+          "INR",
+          "NEFT", // or IMPS, RTGS based on amount/urgency
+          "payout",
+          "SETT_" + settlementId.toString().substring(0, 8),
+          "Settlement payout for period " + settlement.getPeriodStart() + " to " + settlement.getPeriodEnd()
+      );
+
+      // Store payout reference
+      String payoutId = (String) payoutResponse.get("id");
+      String utr = (String) payoutResponse.get("utr");
+      settlement.setBankReference(payoutId);
+      if (utr != null) {
+        settlement.setBankReference(payoutId + "/" + utr);
+      }
+      settlement = settlementRepository.save(settlement);
+
+      log.info("Payout created for settlement {}: payoutId={}", settlementId, payoutId);
+    } catch (Exception e) {
+      log.error("Failed to create payout for settlement {}: {}", settlementId, e.getMessage());
+      // Don't fail the settlement - it's in PROCESSING state and can be retried
+      // The failure will be detected by a scheduled job or webhook
+    }
 
     log.info("Settlement {} processing initiated by admin {}", settlementId, adminId);
     return settlement;
+  }
+
+  private String getOrCreateFundAccount(Seller seller) {
+    // Check if seller already has a stored fund account ID to avoid duplicates
+    if (seller.getRazorpayFundAccountId() != null) {
+      log.debug("Using existing Razorpay fund account {} for seller {}",
+          seller.getRazorpayFundAccountId(), seller.getId());
+      return seller.getRazorpayFundAccountId();
+    }
+
+    String contactId = seller.getRazorpayContactId();
+
+    // Create contact if not exists
+    if (contactId == null) {
+      log.info("Creating new Razorpay contact for seller {}", seller.getId());
+
+      // Decrypt phone number if available
+      String phone = null;
+      if (seller.getPhoneEncrypted() != null) {
+        try {
+          phone = encryptionService.decrypt(seller.getPhoneEncrypted());
+        } catch (Exception e) {
+          log.warn("Failed to decrypt phone for seller {}: {}", seller.getId(), e.getMessage());
+        }
+      }
+
+      Map<String, Object> contact = razorpayService.createContact(
+          seller.getBusinessName(),
+          seller.getEmail(),
+          phone,
+          "vendor",
+          "SELLER_" + seller.getId().toString().substring(0, 8)
+      );
+      contactId = (String) contact.get("id");
+
+      // Store contact ID on seller for future use
+      seller.setRazorpayContactId(contactId);
+      sellerRepository.save(seller);
+      log.info("Created and stored Razorpay contact {} for seller {}", contactId, seller.getId());
+    }
+
+    // Decrypt bank account number
+    String bankAccountNumber;
+    if (seller.getBankAccountNumberEncrypted() == null) {
+      throw new BusinessException(
+          "Bank account number not configured for seller",
+          "BANK_ACCOUNT_MISSING",
+          HttpStatus.BAD_REQUEST
+      );
+    }
+
+    try {
+      bankAccountNumber = encryptionService.decrypt(seller.getBankAccountNumberEncrypted());
+    } catch (Exception e) {
+      log.error("Failed to decrypt bank account number for seller {}: {}", seller.getId(), e.getMessage());
+      throw new BusinessException(
+          "Failed to decrypt bank account details",
+          "DECRYPTION_ERROR",
+          HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+
+    // Create fund account
+    log.info("Creating new Razorpay fund account for seller {}", seller.getId());
+    Map<String, Object> fundAccount = razorpayService.createFundAccount(
+        contactId,
+        bankAccountNumber,
+        seller.getBankIfsc(),
+        seller.getBusinessName()
+    );
+
+    String fundAccountId = (String) fundAccount.get("id");
+
+    // Store fund account ID on seller for future use
+    seller.setRazorpayFundAccountId(fundAccountId);
+    sellerRepository.save(seller);
+    log.info("Created and stored Razorpay fund account {} for seller {}", fundAccountId, seller.getId());
+
+    return fundAccountId;
   }
 
   @Transactional
@@ -221,4 +336,6 @@ public class AdminSettlementService
   private final SettlementRepository settlementRepository;
   private final SellerRepository sellerRepository;
   private final LedgerService ledgerService;
+  private final RazorpayService razorpayService;
+  private final EncryptionService encryptionService;
 }

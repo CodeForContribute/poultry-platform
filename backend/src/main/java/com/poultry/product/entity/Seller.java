@@ -54,6 +54,12 @@ public class Seller {
     @Column(name = "bank_account_holder")
     private String bankAccountHolder;
 
+    @Column(name = "razorpay_contact_id")
+    private String razorpayContactId;
+
+    @Column(name = "razorpay_fund_account_id")
+    private String razorpayFundAccountId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "settlement_cycle", nullable = false)
     @Builder.Default

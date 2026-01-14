@@ -179,8 +179,7 @@ public class AdminSettlementController
       UserPrincipal principal)
   {
 
-    Settlement settlement = settlementService.retrySettlement(
-        settlementId, principal.getId());
+    Settlement settlement = settlementService.retrySettlement(settlementId, principal.getId());
     return ResponseEntity.ok(ApiResponse.success(settlement, "Settlement queued for retry"));
   }
 

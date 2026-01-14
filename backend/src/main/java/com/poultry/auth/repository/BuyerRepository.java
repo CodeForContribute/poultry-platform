@@ -15,4 +15,8 @@ public interface BuyerRepository extends JpaRepository<Buyer, UUID> {
     boolean existsByPhoneHash(String phoneHash);
 
     Optional<Buyer> findByIdAndStatus(UUID id, Buyer.BuyerStatus status);
+
+    long countByStatus(Buyer.BuyerStatus status);
+
+    long countByStatusIn(java.util.List<Buyer.BuyerStatus> statuses);
 }

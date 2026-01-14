@@ -4,6 +4,7 @@ import com.poultry.admin.dto.OrderListDto;
 import com.poultry.common.exception.BusinessException;
 import com.poultry.order.entity.Order;
 import com.poultry.order.repository.OrderRepository;
+import com.poultry.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -85,7 +86,16 @@ public class AdminOrderService
     order.setStatus(Order.OrderStatus.REFUND_INITIATED);
     order = orderRepository.save(order);
 
-    // TODO: Trigger actual refund process via payment service
+    // Trigger actual refund process via payment service
+    try {
+      paymentService.initiateRefund(orderId, reason);
+      order.setStatus(Order.OrderStatus.REFUNDED);
+      order = orderRepository.save(order);
+      log.info("Refund processed successfully for order {}", orderId);
+    } catch (Exception e) {
+      log.error("Failed to process refund for order {}: {}", orderId, e.getMessage());
+      // Keep the order in REFUND_INITIATED status for retry
+    }
 
     log.info("Refund initiated for order {} by admin {}", orderId, adminId);
     return order;
@@ -136,4 +146,5 @@ public class AdminOrderService
                        .build();
   }
   private final OrderRepository orderRepository;
+  private final PaymentService paymentService;
 }

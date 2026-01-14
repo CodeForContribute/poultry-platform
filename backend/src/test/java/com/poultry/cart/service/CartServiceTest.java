@@ -55,7 +55,7 @@ class CartServiceTest
     product.setSellerId(sellerId);
     product.setName("Fresh Chicken");
     product.setSku("CHK-001");
-    product.setUnit(Product.Unit.KG);
+    product.setUnit(Product.ProductUnit.KG);
     product.setMinOrderQty(BigDecimal.ONE);
     product.setMaxOrderQty(BigDecimal.valueOf(100));
 

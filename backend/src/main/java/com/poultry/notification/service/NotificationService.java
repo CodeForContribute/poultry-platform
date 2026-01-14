@@ -6,6 +6,10 @@ import com.poultry.common.exception.BusinessException;
 import com.poultry.notification.dto.SendNotificationRequest;
 import com.poultry.notification.entity.Notification;
 import com.poultry.notification.entity.NotificationTemplate;
+import com.poultry.notification.provider.EmailProvider;
+import com.poultry.notification.provider.PushNotificationProvider;
+import com.poultry.notification.provider.SmsProvider;
+import com.poultry.notification.provider.WhatsAppProvider;
 import com.poultry.notification.repository.NotificationRepository;
 import com.poultry.notification.repository.NotificationTemplateRepository;
 import com.poultry.order.entity.Order;
@@ -34,6 +38,10 @@ public class NotificationService {
     private final NotificationTemplateRepository templateRepository;
     private final BuyerRepository buyerRepository;
     private final SellerRepository sellerRepository;
+    private final SmsProvider smsProvider;
+    private final EmailProvider emailProvider;
+    private final PushNotificationProvider pushNotificationProvider;
+    private final WhatsAppProvider whatsAppProvider;
 
     private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
@@ -107,26 +115,19 @@ public class NotificationService {
     }
 
     private void sendSms(Notification notification) {
-        // TODO: Integrate with MSG91 or Twilio
-        // For now, just log
-        log.info("SMS to {}: {}", notification.getRecipientAddress(), notification.getBody());
+        smsProvider.sendSms(notification);
     }
 
     private void sendPushNotification(Notification notification) {
-        // TODO: Integrate with Firebase Cloud Messaging
-        log.info("Push to {}: {} - {}", notification.getRecipientAddress(),
-                notification.getSubject(), notification.getBody());
+        pushNotificationProvider.sendPushNotification(notification);
     }
 
     private void sendEmail(Notification notification) {
-        // TODO: Integrate with email provider (SES, SendGrid, etc.)
-        log.info("Email to {}: {} - {}", notification.getRecipientAddress(),
-                notification.getSubject(), notification.getBody());
+        emailProvider.sendEmail(notification);
     }
 
     private void sendWhatsApp(Notification notification) {
-        // TODO: Integrate with WhatsApp Business API
-        log.info("WhatsApp to {}: {}", notification.getRecipientAddress(), notification.getBody());
+        whatsAppProvider.sendWhatsApp(notification);
     }
 
     @Transactional

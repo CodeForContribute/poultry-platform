@@ -18,4 +18,8 @@ public interface SellerRepository extends JpaRepository<Seller, UUID> {
     boolean existsByGstin(String gstin);
 
     Optional<Seller> findByIdAndStatus(UUID id, Seller.SellerStatus status);
+
+    long countByStatus(Seller.SellerStatus status);
+
+    long countByStatusIn(List<Seller.SellerStatus> statuses);
 }

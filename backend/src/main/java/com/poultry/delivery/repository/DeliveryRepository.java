@@ -25,4 +25,9 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
 
     @Query("SELECT d FROM Delivery d WHERE d.status = 'FAILED' AND d.retryCount < d.maxRetries")
     List<Delivery> findRetryableDeliveries();
+
+    long countByStatus(Delivery.DeliveryStatus status);
+
+    @Query("SELECT COUNT(d) FROM Delivery d WHERE d.status = 'FAILED'")
+    long countFailedDeliveries();
 }

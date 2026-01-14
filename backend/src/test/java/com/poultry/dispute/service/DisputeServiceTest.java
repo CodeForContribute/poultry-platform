@@ -31,209 +31,203 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DisputeService Unit Tests")
-class DisputeServiceTest
-{
+class DisputeServiceTest {
 
-  @BeforeEach
-  void setUp()
-  {
-    buyerId = UUID.randomUUID();
-    sellerId = UUID.randomUUID();
-    orderId = UUID.randomUUID();
-    disputeId = UUID.randomUUID();
+    @Mock
+    private DisputeRepository disputeRepository;
 
-    order = new Order();
-    order.setId(orderId);
-    order.setOrderNumber("ORD-001");
-    order.setBuyerId(buyerId);
-    order.setSellerId(sellerId);
-    order.setStatus(Order.OrderStatus.DELIVERED);
-    order.setTotalAmount(BigDecimal.valueOf(1000));
+    @Mock
+    private DisputeMessageRepository messageRepository;
 
-    dispute = new Dispute();
-    dispute.setId(disputeId);
-    dispute.setDisputeNumber("DSP-001");
-    dispute.setOrderId(orderId);
-    dispute.setBuyerId(buyerId);
-    dispute.setSellerId(sellerId);
-    dispute.setRaisedBy(Dispute.RaisedBy.BUYER);
-    dispute.setDisputeType(Dispute.DisputeType.QUALITY_ISSUE);
-    dispute.setStatus(Dispute.DisputeStatus.OPEN);
-    dispute.setPriority(Dispute.DisputePriority.MEDIUM);
-    dispute.setDescription("Product quality not as expected");
-    dispute.setClaimAmount(BigDecimal.valueOf(500));
-    dispute.setMessages(new ArrayList<>());
-    dispute.setHistory(new ArrayList<>());
-  }
+    @Mock
+    private DisputeHistoryRepository historyRepository;
 
-  @Nested
-  @DisplayName("createDispute")
-  class CreateDisputeTests
-  {
+    @Mock
+    private OrderRepository orderRepository;
 
-    @Test
-    @DisplayName("should throw exception when order not found")
-    void shouldThrowExceptionWhenOrderNotFound()
-    {
-      CreateDisputeRequest request = new CreateDisputeRequest();
-      request.setOrderId(orderId);
-      request.setDisputeType(Dispute.DisputeType.QUALITY_ISSUE);
-      request.setDescription("Issue");
+    @InjectMocks
+    private DisputeService disputeService;
 
-      when(orderRepository.findById(orderId)).thenReturn(Optional.empty());
+    private UUID buyerId;
+    private UUID sellerId;
+    private UUID orderId;
+    private UUID disputeId;
+    private Order order;
+    private Dispute dispute;
 
-      assertThatThrownBy(() -> disputeService.createDispute(buyerId, Dispute.RaisedBy.BUYER, request))
-          .isInstanceOf(BusinessException.class);
+    @BeforeEach
+    void setUp() {
+        buyerId = UUID.randomUUID();
+        sellerId = UUID.randomUUID();
+        orderId = UUID.randomUUID();
+        disputeId = UUID.randomUUID();
+
+        order = new Order();
+        order.setId(orderId);
+        order.setOrderNumber("ORD-001");
+        order.setBuyerId(buyerId);
+        order.setSellerId(sellerId);
+        order.setStatus(Order.OrderStatus.DELIVERED);
+        order.setTotalAmount(BigDecimal.valueOf(1000));
+
+        dispute = new Dispute();
+        dispute.setId(disputeId);
+        dispute.setDisputeNumber("DSP-001");
+        dispute.setOrderId(orderId);
+        dispute.setBuyerId(buyerId);
+        dispute.setSellerId(sellerId);
+        dispute.setRaisedBy(Dispute.RaisedBy.BUYER);
+        dispute.setType(Dispute.DisputeType.QUALITY_ISSUE);
+        dispute.setStatus(Dispute.DisputeStatus.OPEN);
+        dispute.setPriority(2);
+        dispute.setTitle("Quality Issue");
+        dispute.setDescription("Product quality not as expected");
+        dispute.setRequestedAmount(BigDecimal.valueOf(500));
+        dispute.setMessages(new ArrayList<>());
     }
 
-    @Test
-    @DisplayName("should throw exception when active dispute exists")
-    void shouldThrowExceptionWhenActiveDisputeExists()
-    {
-      CreateDisputeRequest request = new CreateDisputeRequest();
-      request.setOrderId(orderId);
-      request.setDisputeType(Dispute.DisputeType.QUALITY_ISSUE);
-      request.setDescription("Issue");
+    @Nested
+    @DisplayName("createDispute")
+    class CreateDisputeTests {
 
-      when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
-      when(disputeRepository.existsByOrderIdAndStatusNotIn(eq(orderId), any())).thenReturn(true);
+        @Test
+        @DisplayName("should throw exception when order not found")
+        void shouldThrowExceptionWhenOrderNotFound() {
+            CreateDisputeRequest request = new CreateDisputeRequest();
+            request.setOrderId(orderId);
+            request.setType(Dispute.DisputeType.QUALITY_ISSUE);
+            request.setTitle("Quality Issue");
+            request.setDescription("Issue");
 
-      assertThatThrownBy(() -> disputeService.createDispute(buyerId, Dispute.RaisedBy.BUYER, request))
-          .isInstanceOf(BusinessException.class)
-          .hasMessageContaining("Active dispute already exists");
+            when(orderRepository.findById(orderId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> disputeService.createDispute(buyerId, Dispute.RaisedBy.BUYER, request))
+                    .isInstanceOf(BusinessException.class);
+        }
+
+        @Test
+        @DisplayName("should create dispute successfully")
+        void shouldCreateDisputeSuccessfully() {
+            CreateDisputeRequest request = new CreateDisputeRequest();
+            request.setOrderId(orderId);
+            request.setType(Dispute.DisputeType.QUALITY_ISSUE);
+            request.setTitle("Quality Issue");
+            request.setDescription("Product quality issue");
+            request.setRequestedAmount(BigDecimal.valueOf(500));
+
+            when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+            when(disputeRepository.getNextDisputeNumber()).thenReturn(1L);
+            when(disputeRepository.save(any(Dispute.class))).thenReturn(dispute);
+
+            DisputeDto result = disputeService.createDispute(buyerId, Dispute.RaisedBy.BUYER, request);
+
+            assertThat(result).isNotNull();
+            verify(disputeRepository).save(any(Dispute.class));
+        }
+
+        @Test
+        @DisplayName("should throw exception when buyer does not own the order")
+        void shouldThrowExceptionWhenBuyerDoesNotOwnOrder() {
+            UUID differentBuyerId = UUID.randomUUID();
+            CreateDisputeRequest request = new CreateDisputeRequest();
+            request.setOrderId(orderId);
+            request.setType(Dispute.DisputeType.QUALITY_ISSUE);
+            request.setTitle("Quality Issue");
+            request.setDescription("Issue");
+
+            when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+
+            assertThatThrownBy(() -> disputeService.createDispute(differentBuyerId, Dispute.RaisedBy.BUYER, request))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("does not belong to this buyer");
+        }
     }
 
-    @Test
-    @DisplayName("should create dispute successfully")
-    void shouldCreateDisputeSuccessfully()
-    {
-      CreateDisputeRequest request = new CreateDisputeRequest();
-      request.setOrderId(orderId);
-      request.setDisputeType(Dispute.DisputeType.QUALITY_ISSUE);
-      request.setDescription("Product quality issue");
-      request.setClaimAmount(BigDecimal.valueOf(500));
+    @Nested
+    @DisplayName("getDispute")
+    class GetDisputeTests {
 
-      when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
-      when(disputeRepository.existsByOrderIdAndStatusNotIn(eq(orderId), any())).thenReturn(false);
-      when(disputeRepository.save(any(Dispute.class))).thenReturn(dispute);
+        @Test
+        @DisplayName("should return dispute by id")
+        void shouldReturnDisputeById() {
+            when(disputeRepository.findById(disputeId)).thenReturn(Optional.of(dispute));
+            when(messageRepository.countByDisputeId(disputeId)).thenReturn(0L);
 
-      DisputeDto result = disputeService.createDispute(buyerId, Dispute.RaisedBy.BUYER, request);
+            DisputeDto result = disputeService.getDispute(disputeId);
 
-      assertThat(result).isNotNull();
-      verify(disputeRepository).save(any(Dispute.class));
-    }
-  }
+            assertThat(result).isNotNull();
+            assertThat(result.getId()).isEqualTo(disputeId);
+        }
 
-  @Nested
-  @DisplayName("getDispute")
-  class GetDisputeTests
-  {
+        @Test
+        @DisplayName("should throw exception when dispute not found")
+        void shouldThrowExceptionWhenDisputeNotFound() {
+            when(disputeRepository.findById(disputeId)).thenReturn(Optional.empty());
 
-    @Test
-    @DisplayName("should return dispute by id")
-    void shouldReturnDisputeById()
-    {
-      when(disputeRepository.findById(disputeId)).thenReturn(Optional.of(dispute));
-
-      DisputeDto result = disputeService.getDispute(disputeId);
-
-      assertThat(result).isNotNull();
-      assertThat(result.getId()).isEqualTo(disputeId);
+            assertThatThrownBy(() -> disputeService.getDispute(disputeId))
+                    .isInstanceOf(BusinessException.class);
+        }
     }
 
-    @Test
-    @DisplayName("should throw exception when dispute not found")
-    void shouldThrowExceptionWhenDisputeNotFound()
-    {
-      when(disputeRepository.findById(disputeId)).thenReturn(Optional.empty());
+    @Nested
+    @DisplayName("getDisputesByBuyer")
+    class GetDisputesByBuyerTests {
 
-      assertThatThrownBy(() -> disputeService.getDispute(disputeId))
-          .isInstanceOf(BusinessException.class);
+        @Test
+        @DisplayName("should return buyer disputes")
+        void shouldReturnBuyerDisputes() {
+            Pageable pageable = PageRequest.of(0, 20);
+            Page<Dispute> disputePage = new PageImpl<>(List.of(dispute), pageable, 1);
+
+            when(disputeRepository.findByBuyerId(buyerId, pageable)).thenReturn(disputePage);
+
+            Page<DisputeDto> result = disputeService.getDisputesByBuyer(buyerId, pageable);
+
+            assertThat(result).isNotNull();
+            assertThat(result.getContent()).hasSize(1);
+        }
     }
-  }
 
-  @Nested
-  @DisplayName("getDisputesByBuyer")
-  class GetDisputesByBuyerTests
-  {
+    @Nested
+    @DisplayName("updateStatus")
+    class UpdateStatusTests {
 
-    @Test
-    @DisplayName("should return buyer disputes")
-    void shouldReturnBuyerDisputes()
-    {
-      Pageable pageable = PageRequest.of(0, 20);
-      Page<Dispute> disputePage = new PageImpl<>(List.of(dispute), pageable, 1);
+        @Test
+        @DisplayName("should update dispute status")
+        void shouldUpdateDisputeStatus() {
+            UUID adminId = UUID.randomUUID();
 
-      when(disputeRepository.findByBuyerId(buyerId, pageable)).thenReturn(disputePage);
+            when(disputeRepository.findById(disputeId)).thenReturn(Optional.of(dispute));
+            when(disputeRepository.save(any(Dispute.class))).thenReturn(dispute);
 
-      Page<DisputeDto> result = disputeService.getDisputesByBuyer(buyerId, pageable);
+            DisputeDto result = disputeService.updateStatus(disputeId, adminId, Dispute.DisputeStatus.UNDER_REVIEW, "Starting review");
 
-      assertThat(result).isNotNull();
-      assertThat(result.getContent()).hasSize(1);
+            assertThat(result).isNotNull();
+            verify(disputeRepository).save(any(Dispute.class));
+            verify(historyRepository).save(any());
+        }
     }
-  }
 
-  @Nested
-  @DisplayName("updateStatus")
-  class UpdateStatusTests
-  {
+    @Nested
+    @DisplayName("escalateDispute")
+    class EscalateDisputeTests {
 
-    @Test
-    @DisplayName("should update dispute status")
-    void shouldUpdateDisputeStatus()
-    {
-      UUID adminId = UUID.randomUUID();
+        @Test
+        @DisplayName("should escalate dispute priority")
+        void shouldEscalateDisputePriority() {
+            UUID adminId = UUID.randomUUID();
 
-      when(disputeRepository.findById(disputeId)).thenReturn(Optional.of(dispute));
-      when(disputeRepository.save(any(Dispute.class))).thenReturn(dispute);
+            when(disputeRepository.findById(disputeId)).thenReturn(Optional.of(dispute));
+            when(disputeRepository.save(any(Dispute.class))).thenReturn(dispute);
 
-      DisputeDto result = disputeService.updateStatus(disputeId, adminId, Dispute.DisputeStatus.UNDER_REVIEW, "Starting review");
+            DisputeDto result = disputeService.escalateDispute(disputeId, adminId, "Urgent customer");
 
-      assertThat(result).isNotNull();
-      verify(disputeRepository).save(any(Dispute.class));
-      verify(historyRepository).save(any());
+            assertThat(result).isNotNull();
+            verify(disputeRepository).save(argThat(d -> d.getPriority() == 1 && d.getStatus() == Dispute.DisputeStatus.ESCALATED));
+        }
     }
-  }
-
-  @Nested
-  @DisplayName("escalateDispute")
-  class EscalateDisputeTests
-  {
-
-    @Test
-    @DisplayName("should escalate dispute priority")
-    void shouldEscalateDisputePriority()
-    {
-      UUID adminId = UUID.randomUUID();
-
-      when(disputeRepository.findById(disputeId)).thenReturn(Optional.of(dispute));
-      when(disputeRepository.save(any(Dispute.class))).thenReturn(dispute);
-
-      DisputeDto result = disputeService.escalateDispute(disputeId, adminId, "Urgent customer");
-
-      assertThat(result).isNotNull();
-      verify(disputeRepository).save(argThat(d -> d.getPriority() == Dispute.DisputePriority.HIGH));
-    }
-  }
-  @Mock
-  private DisputeRepository disputeRepository;
-  @Mock
-  private DisputeMessageRepository messageRepository;
-  @Mock
-  private DisputeHistoryRepository historyRepository;
-  @Mock
-  private OrderRepository orderRepository;
-  @InjectMocks
-  private DisputeService disputeService;
-  private UUID buyerId;
-  private UUID sellerId;
-  private UUID orderId;
-  private UUID disputeId;
-  private Order order;
-  private Dispute dispute;
 }

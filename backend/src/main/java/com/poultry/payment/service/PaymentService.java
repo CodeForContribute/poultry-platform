@@ -14,16 +14,11 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,15 +32,7 @@ public class PaymentService {
     private final OrderStateMachine orderStateMachine;
     private final LedgerService ledgerService;
     private final NotificationService notificationService;
-
-    @Value("${external.razorpay.key-id:}")
-    private String razorpayKeyId;
-
-    @Value("${external.razorpay.key-secret:}")
-    private String razorpayKeySecret;
-
-    @Value("${external.razorpay.webhook-secret:}")
-    private String razorpayWebhookSecret;
+    private final RazorpayService razorpayService;
 
     @Transactional
     @CircuitBreaker(name = "razorpay", fallbackMethod = "createPaymentFallback")
@@ -73,8 +60,14 @@ public class PaymentService {
             );
         }
 
-        // Create Razorpay order (in real implementation, call Razorpay API)
-        String razorpayOrderId = "order_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
+        // Create Razorpay order
+        Map<String, Object> razorpayOrder = razorpayService.createOrder(
+                order.getTotalAmount(),
+                "INR",
+                order.getOrderNumber(),
+                Map.of("order_id", order.getId().toString())
+        );
+        String razorpayOrderId = (String) razorpayOrder.get("id");
 
         // Create payment record
         Payment payment = Payment.builder()
@@ -110,7 +103,7 @@ public class PaymentService {
     @Transactional
     public void handleWebhook(String signature, Map<String, Object> payload) {
         // Verify signature
-        if (!verifyWebhookSignature(payload.toString(), signature)) {
+        if (!razorpayService.verifyWebhookSignature(payload.toString(), signature)) {
             log.warn("Invalid webhook signature");
             throw new BusinessException("Invalid signature", "INVALID_SIGNATURE", HttpStatus.UNAUTHORIZED);
         }
@@ -217,18 +210,26 @@ public class PaymentService {
             throw BusinessException.invalidState("Payment cannot be refunded");
         }
 
-        // In real implementation, call Razorpay refund API
-        String refundId = "rfnd_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
+        // Call Razorpay refund API
+        Map<String, Object> refundResponse = razorpayService.createRefund(
+                payment.getGatewayPaymentId(),
+                payment.getAmount(),
+                reason,
+                Map.of("order_id", orderId.toString(), "reason", reason != null ? reason : "Customer request")
+        );
+
+        String refundId = (String) refundResponse.get("id");
+        String status = (String) refundResponse.get("status");
 
         payment.setRefundId(refundId);
         payment.setRefundAmount(payment.getAmount());
-        payment.setRefundStatus("processed");
+        payment.setRefundStatus(status);
         payment.setRefundedAt(Instant.now());
         payment.setStatus(Payment.PaymentStatus.REFUNDED);
 
         paymentRepository.save(payment);
 
-        log.info("Refund initiated: {} for payment: {}", refundId, payment.getId());
+        log.info("Refund initiated: {} for payment: {}, status: {}", refundId, payment.getId(), status);
     }
 
     @Transactional(readOnly = true)
@@ -236,21 +237,6 @@ public class PaymentService {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> BusinessException.notFound("Payment", paymentId));
         return mapToDto(payment, false);
-    }
-
-    private boolean verifyWebhookSignature(String payload, String signature) {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKey = new SecretKeySpec(
-                    razorpayWebhookSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-            mac.init(secretKey);
-            byte[] hash = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
-            String computed = HexFormat.of().formatHex(hash);
-            return computed.equals(signature);
-        } catch (Exception e) {
-            log.error("Signature verification failed", e);
-            return false;
-        }
     }
 
     private PaymentDto mapToDto(Payment payment, boolean includeCheckoutDetails) {
@@ -269,7 +255,7 @@ public class PaymentService {
                 .createdAt(payment.getCreatedAt());
 
         if (includeCheckoutDetails && payment.getGateway() == Payment.PaymentGateway.RAZORPAY) {
-            builder.razorpayKey(razorpayKeyId)
+            builder.razorpayKey(razorpayService.getRazorpayKeyId())
                     .razorpayOrderId(payment.getGatewayOrderId());
         }
 

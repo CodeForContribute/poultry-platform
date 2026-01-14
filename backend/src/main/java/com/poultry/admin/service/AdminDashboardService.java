@@ -3,8 +3,15 @@ package com.poultry.admin.service;
 import com.poultry.admin.dto.AdminDashboardDto;
 import com.poultry.analytics.dto.DateRangeRequest;
 import com.poultry.analytics.repository.AnalyticsRepository;
+import com.poultry.auth.entity.Buyer;
+import com.poultry.auth.repository.BuyerRepository;
+import com.poultry.delivery.repository.DeliveryRepository;
+import com.poultry.dispute.repository.DisputeRepository;
 import com.poultry.order.entity.Order;
 import com.poultry.order.repository.OrderRepository;
+import com.poultry.product.entity.Seller;
+import com.poultry.product.repository.SellerRepository;
+import com.poultry.settlement.repository.SettlementRepository;
 import com.poultry.verification.repository.SellerVerificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -103,14 +110,14 @@ public class AdminDashboardService
 
   private Long countInactiveSellers()
   {
-    // TODO: Implement with seller repository
-    return 0L;
+    return sellerRepository.countByStatusIn(
+        List.of(Seller.SellerStatus.INACTIVE, Seller.SellerStatus.SUSPENDED));
   }
 
   private Long countInactiveBuyers()
   {
-    // TODO: Implement with buyer repository
-    return 0L;
+    return buyerRepository.countByStatusIn(
+        List.of(Buyer.BuyerStatus.INACTIVE, Buyer.BuyerStatus.BLOCKED));
   }
 
   private Long countPendingVerificationSellers()
@@ -125,20 +132,17 @@ public class AdminDashboardService
 
   private Long countPendingSettlements()
   {
-    // TODO: Implement with settlement repository
-    return 0L;
+    return settlementRepository.countPendingSettlements();
   }
 
   private Long countDisputedOrders()
   {
-    // TODO: Implement - count orders with disputes
-    return 0L;
+    return disputeRepository.countOpenDisputes();
   }
 
   private Long countFailedDeliveries()
   {
-    // TODO: Implement with delivery repository
-    return 0L;
+    return deliveryRepository.countFailedDeliveries();
   }
 
   private List<AdminDashboardDto.Alert> buildAlerts(Long pendingVerifications, Long pendingSettlements,
@@ -191,4 +195,9 @@ public class AdminDashboardService
   private final AnalyticsRepository analyticsRepository;
   private final OrderRepository orderRepository;
   private final SellerVerificationRepository verificationRepository;
+  private final SellerRepository sellerRepository;
+  private final BuyerRepository buyerRepository;
+  private final SettlementRepository settlementRepository;
+  private final DisputeRepository disputeRepository;
+  private final DeliveryRepository deliveryRepository;
 }
