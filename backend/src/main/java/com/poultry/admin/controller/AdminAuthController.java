@@ -30,8 +30,7 @@ public class AdminAuthController
   public ResponseEntity<ApiResponse<TokenResponse>> login(
       @Valid
       @RequestBody
-      AdminLoginRequest request,
-      HttpServletRequest httpRequest)
+      AdminLoginRequest request, HttpServletRequest httpRequest)
   {
 
     String ipAddress = httpRequest.getRemoteAddr();
@@ -82,5 +81,6 @@ public class AdminAuthController
     AdminUserDto admin = adminAuthService.createAdmin(request, principal.getId());
     return ResponseEntity.ok(ApiResponse.success(admin, "Admin created successfully"));
   }
+
   private final AdminAuthService adminAuthService;
 }

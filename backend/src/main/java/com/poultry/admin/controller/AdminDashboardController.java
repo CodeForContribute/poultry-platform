@@ -20,13 +20,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminDashboardController
 {
 
-  @GetMapping
-  @Operation(summary = "Get dashboard", description = "Get admin dashboard with overview metrics")
-  public ResponseEntity<ApiResponse<AdminDashboardDto>> getDashboard()
-  {
-    AdminDashboardDto dashboard = dashboardService.getDashboard();
-    return ResponseEntity.ok(ApiResponse.success(dashboard));
-  }
+    private final AdminDashboardService dashboardService;
 
-  private final AdminDashboardService dashboardService;
+    @GetMapping
+    @Operation(summary = "Get dashboard", description = "Get admin dashboard with overview metrics")
+    public ResponseEntity<ApiResponse<AdminDashboardDto>> getDashboard()
+    {
+        AdminDashboardDto dashboard = dashboardService.getDashboard();
+        return ResponseEntity.ok(ApiResponse.success(dashboard));
+    }
 }

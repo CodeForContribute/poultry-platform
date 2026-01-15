@@ -41,4 +41,10 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     @Query("SELECT p FROM Product p WHERE p.sellerId = :sellerId AND p.status = 'ACTIVE' AND p.deletedAt IS NULL")
     Page<Product> findActiveBySellerPaged(UUID sellerId, Pageable pageable);
+
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.sellerId = :sellerId AND p.deletedAt IS NULL")
+    long countBySellerId(UUID sellerId);
+
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.sellerId = :sellerId AND p.status = :status AND p.deletedAt IS NULL")
+    long countBySellerIdAndStatus(UUID sellerId, Product.ProductStatus status);
 }

@@ -37,8 +37,7 @@ public class DisputeService
   {
     log.info("Creating dispute for order {} by {} {}", request.getOrderId(), raisedBy, userId);
 
-    Order order = orderRepository.findById(request.getOrderId())
-                                 .orElseThrow(() -> new BusinessException("Order not found", "ORDER_NOT_FOUND", HttpStatus.NOT_FOUND));
+    Order order = orderRepository.findById(request.getOrderId()).orElseThrow(() -> new BusinessException("Order not found", "ORDER_NOT_FOUND", HttpStatus.NOT_FOUND));
 
     // Validate user owns the order
     if (raisedBy == RaisedBy.BUYER && !order.getBuyerId().equals(userId))
@@ -54,21 +53,7 @@ public class DisputeService
     Long seq = disputeRepository.getNextDisputeNumber();
     String disputeNumber = "DSP" + seq;
 
-    Dispute dispute = Dispute.builder()
-                             .disputeNumber(disputeNumber)
-                             .orderId(request.getOrderId())
-                             .buyerId(order.getBuyerId())
-                             .sellerId(order.getSellerId())
-                             .raisedBy(raisedBy)
-                             .type(request.getType())
-                             .status(DisputeStatus.OPEN)
-                             .title(request.getTitle())
-                             .description(request.getDescription())
-                             .evidenceUrls(request.getEvidenceUrls() != null ? request.getEvidenceUrls() : List.of())
-                             .requestedResolution(request.getRequestedResolution())
-                             .requestedAmount(request.getRequestedAmount())
-                             .priority(2)
-                             .build();
+    Dispute dispute = Dispute.builder().disputeNumber(disputeNumber).orderId(request.getOrderId()).buyerId(order.getBuyerId()).sellerId(order.getSellerId()).raisedBy(raisedBy).type(request.getType()).status(DisputeStatus.OPEN).title(request.getTitle()).description(request.getDescription()).evidenceUrls(request.getEvidenceUrls() != null ? request.getEvidenceUrls() : List.of()).requestedResolution(request.getRequestedResolution()).requestedAmount(request.getRequestedAmount()).priority(2).build();
 
     dispute = disputeRepository.save(dispute);
 
@@ -82,8 +67,7 @@ public class DisputeService
   @Transactional(readOnly = true)
   public DisputeDto getDispute(UUID disputeId)
   {
-    Dispute dispute = disputeRepository.findById(disputeId)
-                                       .orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
+    Dispute dispute = disputeRepository.findById(disputeId).orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
 
     DisputeDto dto = DisputeDto.fromEntity(dispute);
     dto.setMessageCount((int) messageRepository.countByDisputeId(disputeId));
@@ -93,23 +77,20 @@ public class DisputeService
   @Transactional(readOnly = true)
   public DisputeDto getDisputeByNumber(String disputeNumber)
   {
-    Dispute dispute = disputeRepository.findByDisputeNumber(disputeNumber)
-                                       .orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
+    Dispute dispute = disputeRepository.findByDisputeNumber(disputeNumber).orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
     return DisputeDto.fromEntity(dispute);
   }
 
   @Transactional(readOnly = true)
   public Page<DisputeDto> getDisputesByBuyer(UUID buyerId, Pageable pageable)
   {
-    return disputeRepository.findByBuyerId(buyerId, pageable)
-                            .map(DisputeDto::fromEntity);
+    return disputeRepository.findByBuyerId(buyerId, pageable).map(DisputeDto::fromEntity);
   }
 
   @Transactional(readOnly = true)
   public Page<DisputeDto> getDisputesBySeller(UUID sellerId, Pageable pageable)
   {
-    return disputeRepository.findBySellerId(sellerId, pageable)
-                            .map(DisputeDto::fromEntity);
+    return disputeRepository.findBySellerId(sellerId, pageable).map(DisputeDto::fromEntity);
   }
 
   @Transactional
@@ -117,22 +98,14 @@ public class DisputeService
   {
     log.info("Adding message to dispute {} by {} {}", disputeId, senderType, senderId);
 
-    Dispute dispute = disputeRepository.findById(disputeId)
-                                       .orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
+    Dispute dispute = disputeRepository.findById(disputeId).orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
 
     if (!dispute.isOpen())
     {
       throw new BusinessException("Cannot add message to closed dispute", "DISPUTE_CLOSED", HttpStatus.BAD_REQUEST);
     }
 
-    DisputeMessage message = DisputeMessage.builder()
-                                           .dispute(dispute)
-                                           .senderType(senderType)
-                                           .senderId(senderId)
-                                           .message(request.getMessage())
-                                           .attachmentUrls(request.getAttachmentUrls() != null ? request.getAttachmentUrls() : List.of())
-                                           .isInternal(request.getIsInternal() != null && request.getIsInternal())
-                                           .build();
+    DisputeMessage message = DisputeMessage.builder().dispute(dispute).senderType(senderType).senderId(senderId).message(request.getMessage()).attachmentUrls(request.getAttachmentUrls() != null ? request.getAttachmentUrls() : List.of()).isInternal(request.getIsInternal() != null && request.getIsInternal()).build();
 
     message = messageRepository.save(message);
 
@@ -160,9 +133,7 @@ public class DisputeService
     {
       messages = messageRepository.findByDisputeIdPublic(disputeId);
     }
-    return messages.stream()
-                   .map(DisputeMessageDto::fromEntity)
-                   .collect(Collectors.toList());
+    return messages.stream().map(DisputeMessageDto::fromEntity).collect(Collectors.toList());
   }
 
   @Transactional
@@ -170,8 +141,7 @@ public class DisputeService
   {
     log.info("Updating dispute {} status to {} by admin {}", disputeId, newStatus, adminId);
 
-    Dispute dispute = disputeRepository.findById(disputeId)
-                                       .orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
+    Dispute dispute = disputeRepository.findById(disputeId).orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
 
     DisputeStatus oldStatus = dispute.getStatus();
     dispute.setStatus(newStatus);
@@ -187,8 +157,7 @@ public class DisputeService
   {
     log.info("Assigning dispute {} to admin {}", disputeId, assignee);
 
-    Dispute dispute = disputeRepository.findById(disputeId)
-                                       .orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
+    Dispute dispute = disputeRepository.findById(disputeId).orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
 
     dispute.setAssignedTo(assignee);
     if (dispute.getStatus() == DisputeStatus.OPEN)
@@ -211,8 +180,7 @@ public class DisputeService
   {
     log.info("Escalating dispute {} by admin {}", disputeId, adminId);
 
-    Dispute dispute = disputeRepository.findById(disputeId)
-                                       .orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
+    Dispute dispute = disputeRepository.findById(disputeId).orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
 
     if (!dispute.canBeEscalated())
     {
@@ -235,8 +203,7 @@ public class DisputeService
   {
     log.info("Resolving dispute {} by admin {}", disputeId, adminId);
 
-    Dispute dispute = disputeRepository.findById(disputeId)
-                                       .orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
+    Dispute dispute = disputeRepository.findById(disputeId).orElseThrow(() -> new BusinessException("Dispute not found", "DISPUTE_NOT_FOUND", HttpStatus.NOT_FOUND));
 
     if (!dispute.isOpen())
     {
@@ -253,33 +220,21 @@ public class DisputeService
 
     dispute = disputeRepository.save(dispute);
 
-    recordHistory(disputeId, "RESOLVED", oldStatus, DisputeStatus.RESOLVED, adminId,
-                  "Resolution: " + request.getResolution().name() + (request.getNotes() != null ? " - " + request.getNotes() : ""));
+    recordHistory(disputeId, "RESOLVED", oldStatus, DisputeStatus.RESOLVED, adminId, "Resolution: " + request.getResolution().name() + (request.getNotes() != null ? " - " + request.getNotes() : ""));
 
     return DisputeDto.fromEntity(dispute);
   }
 
   @Transactional(readOnly = true)
-  public Page<DisputeDto> getDisputesWithFilters(UUID buyerId, UUID sellerId, DisputeStatus status,
-                                                 DisputeType type, Pageable pageable)
+  public Page<DisputeDto> getDisputesWithFilters(UUID buyerId, UUID sellerId, DisputeStatus status, DisputeType type, Pageable pageable)
   {
-    return disputeRepository.findWithFilters(buyerId, sellerId, status, type, pageable)
-                            .map(DisputeDto::fromEntity);
+    return disputeRepository.findWithFilters(buyerId, sellerId, status, type, pageable).map(DisputeDto::fromEntity);
   }
 
   @Transactional(readOnly = true)
   public DisputeStatsDto getDisputeStats()
   {
-    return DisputeStatsDto.builder()
-                          .totalOpen(disputeRepository.countOpenDisputes())
-                          .openCount(disputeRepository.countByStatus(DisputeStatus.OPEN))
-                          .underReviewCount(disputeRepository.countByStatus(DisputeStatus.UNDER_REVIEW))
-                          .escalatedCount(disputeRepository.countByStatus(DisputeStatus.ESCALATED))
-                          .awaitingResponseCount(disputeRepository.countByStatus(DisputeStatus.AWAITING_RESPONSE))
-                          .resolvedCount(disputeRepository.countByStatus(DisputeStatus.RESOLVED))
-                          .closedCount(disputeRepository.countByStatus(DisputeStatus.CLOSED))
-                          .unassignedCount(disputeRepository.countUnassigned())
-                          .build();
+    return DisputeStatsDto.builder().totalOpen(disputeRepository.countOpenDisputes()).openCount(disputeRepository.countByStatus(DisputeStatus.OPEN)).underReviewCount(disputeRepository.countByStatus(DisputeStatus.UNDER_REVIEW)).escalatedCount(disputeRepository.countByStatus(DisputeStatus.ESCALATED)).awaitingResponseCount(disputeRepository.countByStatus(DisputeStatus.AWAITING_RESPONSE)).resolvedCount(disputeRepository.countByStatus(DisputeStatus.RESOLVED)).closedCount(disputeRepository.countByStatus(DisputeStatus.CLOSED)).unassignedCount(disputeRepository.countUnassigned()).build();
   }
 
   @Transactional(readOnly = true)
@@ -288,19 +243,12 @@ public class DisputeService
     return historyRepository.findByDisputeIdOrderByCreatedAtDesc(disputeId);
   }
 
-  private void recordHistory(UUID disputeId, String action, DisputeStatus oldStatus,
-                             DisputeStatus newStatus, UUID performedBy, String notes)
+  private void recordHistory(UUID disputeId, String action, DisputeStatus oldStatus, DisputeStatus newStatus, UUID performedBy, String notes)
   {
-    DisputeHistory history = DisputeHistory.builder()
-                                           .disputeId(disputeId)
-                                           .action(action)
-                                           .oldStatus(oldStatus)
-                                           .newStatus(newStatus)
-                                           .performedBy(performedBy)
-                                           .notes(notes)
-                                           .build();
+    DisputeHistory history = DisputeHistory.builder().disputeId(disputeId).action(action).oldStatus(oldStatus).newStatus(newStatus).performedBy(performedBy).notes(notes).build();
     historyRepository.save(history);
   }
+
   private final DisputeRepository disputeRepository;
   private final DisputeMessageRepository messageRepository;
   private final DisputeHistoryRepository historyRepository;

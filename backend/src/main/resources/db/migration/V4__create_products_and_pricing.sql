@@ -81,9 +81,9 @@ CREATE INDEX idx_products_sku ON products(sku);
 
 CREATE INDEX idx_price_history_product_id ON price_history(product_id);
 CREATE INDEX idx_price_history_effective ON price_history(product_id, effective_from, effective_to);
--- Index for finding current price
+-- Index for finding current price (covers active and future prices)
 CREATE INDEX idx_price_history_current ON price_history(product_id, effective_from DESC)
-    WHERE effective_to IS NULL OR effective_to > NOW();
+    WHERE effective_to IS NULL;
 
 CREATE INDEX idx_buyer_favorites_buyer_id ON buyer_favorites(buyer_id);
 CREATE INDEX idx_buyer_favorites_product_id ON buyer_favorites(product_id) WHERE product_id IS NOT NULL;

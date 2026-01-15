@@ -1,8 +1,9 @@
 -- V2: Create sellers and seller_users tables
 
--- Enable UUID extension
+-- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "btree_gist";
 
 -- Sellers table
 CREATE TABLE sellers (

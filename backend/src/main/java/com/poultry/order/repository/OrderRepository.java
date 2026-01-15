@@ -57,4 +57,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Object[]> getSellerOrderStats(Instant start, Instant end);
 
   Page<Order> findByStatus(Order.OrderStatus status, Pageable pageable);
+
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.sellerId = :sellerId AND o.status IN :statuses")
+    long countBySellerIdAndStatusIn(UUID sellerId, List<Order.OrderStatus> statuses);
+
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.sellerId = :sellerId AND o.createdAt BETWEEN :start AND :end")
+    long countBySellerIdAndCreatedAtBetween(UUID sellerId, Instant start, Instant end);
+
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.sellerId = :sellerId AND o.status IN :statuses AND o.createdAt BETWEEN :start AND :end")
+    java.math.BigDecimal sumTotalAmountBySellerIdAndStatusInAndCreatedAtBetween(UUID sellerId, List<Order.OrderStatus> statuses, Instant start, Instant end);
+
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.sellerId = :sellerId AND o.status IN :statuses")
+    java.math.BigDecimal sumTotalAmountBySellerIdAndStatusIn(UUID sellerId, List<Order.OrderStatus> statuses);
 }

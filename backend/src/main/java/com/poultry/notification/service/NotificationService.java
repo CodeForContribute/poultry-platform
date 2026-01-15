@@ -13,6 +13,7 @@ import com.poultry.notification.provider.WhatsAppProvider;
 import com.poultry.notification.repository.NotificationRepository;
 import com.poultry.notification.repository.NotificationTemplateRepository;
 import com.poultry.order.entity.Order;
+import com.poultry.order.repository.OrderRepository;
 import com.poultry.product.entity.Seller;
 import com.poultry.product.repository.SellerRepository;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,7 @@ public class NotificationService {
     private final NotificationTemplateRepository templateRepository;
     private final BuyerRepository buyerRepository;
     private final SellerRepository sellerRepository;
+    private final OrderRepository orderRepository;
     private final SmsProvider smsProvider;
     private final EmailProvider emailProvider;
     private final PushNotificationProvider pushNotificationProvider;
@@ -306,15 +308,25 @@ public class NotificationService {
   {
     log.info("Sending delivery notification: type={}, orderId={}", notificationType, orderId);
 
+    // Resolve buyer ID from order
+    Order order = orderRepository.findById(orderId).orElse(null);
+    if (order == null) {
+      log.warn("Order not found for delivery notification: orderId={}", orderId);
+      return;
+    }
+
+    UUID buyerId = order.getBuyerId();
+
     Map<String, String> variables = new HashMap<>();
     variables.put("status", status != null ? status : "");
+    variables.put("order_number", order.getOrderNumber());
 
     try
     {
       SendNotificationRequest request = SendNotificationRequest.builder()
                                                                .templateCode(notificationType)
                                                                .recipientType("BUYER")
-                                                               .recipientId(orderId) // This would need to be resolved to buyer ID
+                                                               .recipientId(buyerId)
                                                                .channel(Notification.Channel.SMS)
                                                                .priority(Notification.Priority.MEDIUM)
                                                                .variables(variables)

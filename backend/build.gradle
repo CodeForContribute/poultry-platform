@@ -48,7 +48,6 @@ dependencies {
     // JSON Processing
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
-    implementation 'com.vladmihalcea:hibernate-types-60:2.21.1'
 
     // MinIO
     implementation 'io.minio:minio:8.5.7'
