@@ -55,12 +55,31 @@ application-local.properties
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
 !.env.example
 
 # Secrets
 **/secrets/
 *.pem
 *.key
+*.keystore
+*.jks
+
+# Android
+buyer-android/app/google-services.json
+buyer-android/gradle.properties
+buyer-android/local.properties
+!buyer-android/gradle.properties.example
+
+# iOS
+buyer-ios/GoogleService-Info.plist
+buyer-ios/*.xcconfig
+!buyer-ios/*.xcconfig.example
+
+# Kubernetes secrets (use sealed-secrets in production)
+**/k8s/secrets-*.yaml
+!**/k8s/secrets.yaml
 
 # Test output
 test-output/

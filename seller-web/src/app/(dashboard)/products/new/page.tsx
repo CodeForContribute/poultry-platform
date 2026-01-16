@@ -54,9 +54,9 @@ const productSchema = z.object({
     ),
   description: z.string().max(2000).optional(),
   unit: z.enum(["KG", "PIECE", "TRAY", "BAG", "BOTTLE", "BOX"]),
-  minOrderQty: z.coerce.number().min(0.001, "Min order qty must be greater than 0"),
-  maxOrderQty: z.coerce.number().min(0.001).optional(),
-  basePrice: z.coerce.number().min(0.01, "Price must be greater than 0"),
+  minOrderQty: z.number().min(0.001, "Min order qty must be greater than 0"),
+  maxOrderQty: z.number().min(0.001).optional(),
+  basePrice: z.number().min(0.01, "Price must be greater than 0"),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -276,7 +276,7 @@ export default function CreateProductPage() {
                     id="minOrderQty"
                     type="number"
                     step="0.001"
-                    {...register("minOrderQty")}
+                    {...register("minOrderQty", { valueAsNumber: true })}
                   />
                   {errors.minOrderQty && (
                     <p className="text-sm text-destructive">
@@ -292,7 +292,7 @@ export default function CreateProductPage() {
                     id="maxOrderQty"
                     type="number"
                     step="0.001"
-                    {...register("maxOrderQty")}
+                    {...register("maxOrderQty", { valueAsNumber: true })}
                   />
                 </div>
               </div>
@@ -304,7 +304,7 @@ export default function CreateProductPage() {
                   id="basePrice"
                   type="number"
                   step="0.01"
-                  {...register("basePrice")}
+                  {...register("basePrice", { valueAsNumber: true })}
                   placeholder="0.00"
                 />
                 {errors.basePrice && (

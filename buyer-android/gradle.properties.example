@@ -1,0 +1,45 @@
+# Poultry Buyer Android App - Build Configuration
+# Copy this file to gradle.properties and update values
+
+# ===========================================
+# Gradle Settings
+# ===========================================
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+org.gradle.parallel=true
+org.gradle.caching=true
+android.useAndroidX=true
+kotlin.code.style=official
+android.nonTransitiveRClass=true
+
+# ===========================================
+# API Configuration
+# ===========================================
+# Debug API URL (default: local emulator)
+API_BASE_URL_DEBUG=http://10.0.2.2:8080/api
+
+# Production API URL
+API_BASE_URL=https://api.poultry-platform.com/api
+
+# ===========================================
+# Razorpay Configuration
+# ===========================================
+# Test key for development
+RAZORPAY_KEY_ID_DEBUG=rzp_test_YOUR_TEST_KEY
+
+# Live key for production
+RAZORPAY_KEY_ID=rzp_live_YOUR_LIVE_KEY
+
+# ===========================================
+# Release Signing (Required for production builds)
+# ===========================================
+# Generate keystore: keytool -genkey -v -keystore release.keystore -alias poultry -keyalg RSA -keysize 2048 -validity 10000
+KEYSTORE_PATH=/path/to/your/release.keystore
+KEYSTORE_PASSWORD=your_keystore_password
+KEY_ALIAS=poultry
+KEY_PASSWORD=your_key_password
+
+# ===========================================
+# Firebase (Optional - for push notifications)
+# ===========================================
+# Place google-services.json in app/ directory
+# Get from Firebase Console > Project Settings > Your apps > Android app

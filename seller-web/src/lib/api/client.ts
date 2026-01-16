@@ -1,10 +1,17 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/lib/store/auth-store";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+// Validate API URL is configured in production
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+
+if (!API_BASE_URL && process.env.NODE_ENV === "production") {
+  throw new Error("NEXT_PUBLIC_API_URL environment variable is required in production");
+}
+
+const baseUrl = API_BASE_URL || "http://localhost:8080";
 
 export const apiClient = axios.create({
-  baseURL: `${API_BASE_URL}/v1`,
+  baseURL: `${baseUrl}/v1`,
   headers: {
     "Content-Type": "application/json",
   },

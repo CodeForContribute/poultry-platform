@@ -1,8 +1,11 @@
 package com.poultry.config;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,11 +22,12 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Rate limiting filter using Bucket4j token bucket algorithm.
  * Limits requests per client (identified by IP or client ID header).
+ * Uses Caffeine cache with automatic expiration to prevent memory leaks.
  */
 @Slf4j
 @Component
@@ -33,12 +37,19 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     private final RateLimitingConfig config;
 
-    // Cache of rate limit buckets per client
-    private final Map<String, Bucket> bucketCache = new ConcurrentHashMap<>();
+    // Caffeine cache with automatic expiration to prevent memory leaks
+    private Cache<String, Bucket> bucketCache;
 
-    // Cleanup counter to periodically remove stale buckets
-    private int requestCount = 0;
-    private static final int CLEANUP_INTERVAL = 10000;
+    @PostConstruct
+    public void init() {
+        // Initialize Caffeine cache with size limit and time-based expiration
+        bucketCache = Caffeine.newBuilder()
+                .maximumSize(50000)  // Max 50k entries
+                .expireAfterAccess(10, TimeUnit.MINUTES)  // Expire after 10 min of inactivity
+                .recordStats()  // Enable statistics for monitoring
+                .build();
+        log.info("Rate limiting cache initialized with max size: 50000, expiry: 10 minutes");
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -93,10 +104,6 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             ));
         }
 
-        // Periodic cleanup of stale buckets
-        if (++requestCount % CLEANUP_INTERVAL == 0) {
-            cleanupStaleBuckets();
-        }
     }
 
     private String getClientIp(HttpServletRequest request) {
@@ -165,7 +172,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private Bucket getBucket(String clientId, int requestsPerMinute) {
-        return bucketCache.computeIfAbsent(clientId, k -> createBucket(requestsPerMinute));
+        return bucketCache.get(clientId, k -> createBucket(requestsPerMinute));
     }
 
     private Bucket createBucket(int requestsPerMinute) {
@@ -194,15 +201,6 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             response.setHeader("X-RateLimit-Reset", String.valueOf(
                     System.currentTimeMillis() / 1000 + probe.getNanosToWaitForRefill() / 1_000_000_000));
             response.setHeader("Retry-After", String.valueOf(probe.getNanosToWaitForRefill() / 1_000_000_000));
-        }
-    }
-
-    private void cleanupStaleBuckets() {
-        // Remove buckets that haven't been used recently
-        // In production, consider using a time-based eviction cache like Caffeine
-        if (bucketCache.size() > 100000) {
-            log.info("Rate limit bucket cache size: {}, clearing old entries", bucketCache.size());
-            bucketCache.clear();
         }
     }
 }

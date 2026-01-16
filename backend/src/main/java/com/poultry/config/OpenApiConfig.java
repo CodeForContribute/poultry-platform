@@ -9,9 +9,12 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -22,6 +25,15 @@ import java.util.List;
 public class OpenApiConfig {
 
     private static final String BEARER_AUTH = "bearerAuth";
+
+    @Value("${server.port:8080}")
+    private int serverPort;
+
+    @Value("${openapi.production-url:https://api.poultry-platform.com}")
+    private String productionUrl;
+
+    @Value("${spring.profiles.active:local}")
+    private String activeProfile;
 
     @Bean
     public OpenAPI customOpenAPI() {
@@ -57,9 +69,7 @@ public class OpenApiConfig {
                         .license(new License()
                                 .name("Proprietary")
                                 .url("https://poultryplatform.com/terms")))
-                .servers(List.of(
-                        new Server().url("http://localhost:8080").description("Local Development"),
-                        new Server().url("https://api.poultryplatform.com").description("Production")))
+                .servers(getServers())
                 .components(new Components()
                         .addSecuritySchemes(BEARER_AUTH, new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
@@ -147,5 +157,31 @@ public class OpenApiConfig {
                         "/v1/webhooks/**"
                 )
                 .build();
+    }
+
+    /**
+     * Returns appropriate server URLs based on active profile.
+     * In production, only production URL is shown.
+     * In development, both local and production URLs are shown.
+     */
+    private List<Server> getServers() {
+        List<Server> servers = new ArrayList<>();
+
+        if (activeProfile.contains("production") || activeProfile.contains("kubernetes")) {
+            // Production: only show production server
+            servers.add(new Server()
+                    .url(productionUrl)
+                    .description("Production"));
+        } else {
+            // Development: show local server first, then production
+            servers.add(new Server()
+                    .url("http://localhost:" + serverPort)
+                    .description("Local Development"));
+            servers.add(new Server()
+                    .url(productionUrl)
+                    .description("Production"));
+        }
+
+        return servers;
     }
 }

@@ -19,18 +19,35 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/v1\"")
-        buildConfigField("String", "RAZORPAY_KEY_ID", "\"rzp_test_XXXXXXXXXX\"")
     }
 
     buildTypes {
+        debug {
+            isDebuggable = true
+            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/api\"")
+            buildConfigField("String", "RAZORPAY_KEY_ID", "\"${project.findProperty("RAZORPAY_KEY_ID_DEBUG") ?: "rzp_test_REPLACE_ME"}\"")
+        }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField("String", "API_BASE_URL", "\"${project.findProperty("API_BASE_URL") ?: "https://api.poultry-platform.com/api"}\"")
+            buildConfigField("String", "RAZORPAY_KEY_ID", "\"${project.findProperty("RAZORPAY_KEY_ID") ?: "rzp_live_REPLACE_ME"}\"")
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystorePath = project.findProperty("KEYSTORE_PATH") as String?
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = project.findProperty("KEYSTORE_PASSWORD") as String?
+                keyAlias = project.findProperty("KEY_ALIAS") as String?
+                keyPassword = project.findProperty("KEY_PASSWORD") as String?
+            }
         }
     }
 

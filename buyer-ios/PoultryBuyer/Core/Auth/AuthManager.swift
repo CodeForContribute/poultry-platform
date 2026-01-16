@@ -1,5 +1,50 @@
 import Foundation
 import Combine
+import UserNotifications
+
+// MARK: - FCM Token Manager
+class FCMTokenManager {
+    static let shared = FCMTokenManager()
+
+    private var fcmToken: String?
+
+    private init() {}
+
+    /// Get the current FCM token
+    /// Returns nil if Firebase is not configured or token not available
+    func getToken() -> String? {
+        // When Firebase is configured, uncomment the following:
+        // return Messaging.messaging().fcmToken
+        return fcmToken
+    }
+
+    /// Update FCM token (called from AppDelegate when token refreshes)
+    func updateToken(_ token: String) {
+        fcmToken = token
+        // Notify server of token update if user is authenticated
+        if AuthManager.shared.isAuthenticated {
+            Task {
+                await updateTokenOnServer(token)
+            }
+        }
+    }
+
+    private func updateTokenOnServer(_ token: String) async {
+        do {
+            struct FCMTokenUpdate: Codable {
+                let fcmToken: String
+            }
+            let _: APIResponse<EmptyResponse> = try await APIClient.shared.request(
+                endpoint: "/auth/buyer/fcm-token",
+                method: .put,
+                body: FCMTokenUpdate(fcmToken: token),
+                requiresAuth: true
+            )
+        } catch {
+            print("Failed to update FCM token on server: \(error)")
+        }
+    }
+}
 
 class AuthManager: ObservableObject {
     static let shared = AuthManager()
@@ -57,7 +102,7 @@ class AuthManager: ObservableObject {
             deviceId: getDeviceId(),
             deviceFingerprint: nil,
             deviceInfo: getDeviceInfo(),
-            fcmToken: nil // TODO: Get FCM token
+            fcmToken: FCMTokenManager.shared.getToken()
         )
 
         let response: APIResponse<TokenResponse> = try await APIClient.shared.request(

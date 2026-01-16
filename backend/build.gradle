@@ -63,6 +63,9 @@ dependencies {
     // Bucket4j for rate limiting
     implementation 'com.bucket4j:bucket4j-core:8.10.1'
 
+    // Caffeine cache for rate limiting
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+
     // Observability
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'io.micrometer:micrometer-tracing-bridge-brave'

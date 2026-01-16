@@ -166,16 +166,26 @@ management:
       prometheus:
         enabled: true
 
-# Logging
+# Logging (defaults are production-safe, override in local profile for debugging)
 logging:
   level:
     root: INFO
-    com.poultry: DEBUG
-    org.springframework.security: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql: TRACE
+    com.poultry: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId}] %-5level %logger{36} - %msg%n"
+
+# CORS Configuration (override in production)
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+  allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+  allow-credentials: true
+
+# OpenAPI Configuration
+openapi:
+  production-url: ${OPENAPI_PRODUCTION_URL:https://api.poultry-platform.com}
 
 # Resilience4j
 resilience4j:
@@ -207,6 +217,21 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     operations-sorter: method
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+# Local development profile with DEBUG logging
+logging:
+  level:
+    root: INFO
+    com.poultry: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE
 
 ---
 spring:
@@ -258,3 +283,42 @@ logging:
     root: INFO
     com.poultry: INFO
     org.hibernate.SQL: WARN
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+
+  jpa:
+    show-sql: false
+
+external:
+  razorpay:
+    enabled: true
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,redis
+
+security:
+  headers:
+    hsts-preload: true
+
+logging:
+  level:
+    root: WARN
+    com.poultry: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: ERROR
+    org.hibernate.type.descriptor.sql: ERROR
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId}] %-5level %logger{36} - %msg%n"
