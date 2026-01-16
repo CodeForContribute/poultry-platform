@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Bundle Configuration -->
+    <key>CFBundleDisplayName</key>
+    <string>Poultry Buyer</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleVersion</key>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>CFBundlePackageType</key>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <!-- Environment Configuration -->
+    <!-- Set APP_ENVIRONMENT to "staging" for staging builds, omit or set to "production" for production -->
+    <!-- This is typically set via Xcode build settings or CI/CD pipeline -->
+
+    <!-- App Transport Security Settings -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <!--
+            PRODUCTION CONFIGURATION:
+            - Requires HTTPS for all connections (default behavior)
+            - Perfect Forward Secrecy required
+            - TLS 1.2 minimum
+
+            For production, remove the NSExceptionDomains key entirely
+            or set NSAllowsArbitraryLoads to false (default)
+        -->
+        <key>NSAllowsArbitraryLoads</key>
+        <false/>
+
+        <!--
+            Exception domains for development and specific requirements
+            IMPORTANT: These exceptions should be removed or minimized for App Store builds
+        -->
+        <key>NSExceptionDomains</key>
+        <dict>
+            <!-- Production API Domain -->
+            <key>api.poultry-platform.com</key>
+            <dict>
+                <key>NSExceptionRequiresForwardSecrecy</key>
+                <true/>
+                <key>NSExceptionMinimumTLSVersion</key>
+                <string>TLSv1.2</string>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+                <key>NSRequiresCertificateTransparency</key>
+                <true/>
+            </dict>
+
+            <!-- Staging API Domain -->
+            <key>staging-api.poultry-platform.com</key>
+            <dict>
+                <key>NSExceptionRequiresForwardSecrecy</key>
+                <true/>
+                <key>NSExceptionMinimumTLSVersion</key>
+                <string>TLSv1.2</string>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+                <key>NSRequiresCertificateTransparency</key>
+                <true/>
+            </dict>
+
+            <!--
+                Local Development (DEBUG builds only)
+                IMPORTANT: This exception should be removed for App Store builds
+                Configure via Xcode build configurations instead
+            -->
+            <key>localhost</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+            </dict>
+        </dict>
+    </dict>
+
+    <!-- URL Schemes -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.poultry.buyer</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>poultrybuyerapp</string>
+            </array>
+        </dict>
+    </array>
+
+    <!-- Queried URL Schemes -->
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <!-- Payment gateways -->
+        <string>phonepe</string>
+        <string>gpay</string>
+        <string>paytm</string>
+        <string>upi</string>
+        <!-- Maps for delivery tracking -->
+        <string>comgooglemaps</string>
+        <string>maps</string>
+        <!-- Communication -->
+        <string>tel</string>
+        <string>mailto</string>
+        <string>whatsapp</string>
+    </array>
+
+    <!-- Required Device Capabilities -->
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>armv7</string>
+    </array>
+
+    <!-- Interface Orientation -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <!-- Status Bar -->
+    <key>UIStatusBarStyle</key>
+    <string>UIStatusBarStyleDefault</string>
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <true/>
+
+    <!-- Launch Screen -->
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
+
+    <!-- Privacy Permissions -->
+    <key>NSCameraUsageDescription</key>
+    <string>Poultry Buyer needs camera access to scan QR codes and take photos for support tickets.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Poultry Buyer needs photo library access to upload images for support tickets.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Poultry Buyer needs your location to show nearby sellers and for delivery address suggestions.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>Poultry Buyer can access contacts to auto-fill delivery addresses.</string>
+
+    <!-- Background Modes -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>remote-notification</string>
+    </array>
+
+    <!-- Push Notifications -->
+    <key>UIUserNotificationSettings</key>
+    <dict>
+        <key>UIUserNotificationTypes</key>
+        <array>
+            <string>UIUserNotificationTypeAlert</string>
+            <string>UIUserNotificationTypeBadge</string>
+            <string>UIUserNotificationTypeSound</string>
+        </array>
+    </dict>
+
+    <!-- App Appearance -->
+    <key>UIAppearance</key>
+    <string>Automatic</string>
+
+    <!-- Encrypted Communications Notice -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+
+    <!-- Application requires iPhone environment -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.food-and-drink</string>
+
+    <!-- Scene Configuration (SwiftUI) -->
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UIApplicationSupportsMultipleScenes</key>
+        <false/>
+        <key>UISceneConfigurations</key>
+        <dict/>
+    </dict>
+
+    <!-- Hardened Runtime -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>

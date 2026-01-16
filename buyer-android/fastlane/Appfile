@@ -1,0 +1,14 @@
+# Poultry Buyer Android - Appfile
+#
+# This file contains application-specific configuration for fastlane.
+# Values here are used as defaults across all lanes.
+
+# Application Package Name (Bundle ID)
+package_name("com.poultry.buyer")
+
+# Google Play Store Service Account JSON key file
+# This file is used to authenticate with the Google Play Developer API
+# Generate this from Google Play Console -> Setup -> API access
+json_key_file(ENV["GOOGLE_PLAY_JSON_KEY_FILE"] || "fastlane/play-store-credentials.json")
+
+# For a list of all available options, run `fastlane app_config`

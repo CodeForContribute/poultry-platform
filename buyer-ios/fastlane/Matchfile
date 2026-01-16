@@ -1,0 +1,55 @@
+# Poultry Buyer iOS - Matchfile
+#
+# This file configures code signing using fastlane match.
+# Match stores certificates and profiles in a Git repository or cloud storage.
+#
+# For more information: https://docs.fastlane.tools/actions/match/
+
+# Git Storage Configuration
+# Uncomment and configure one storage option:
+
+# Option 1: Git Repository
+git_url(ENV["MATCH_GIT_URL"] || "git@github.com:your-org/ios-certificates.git")
+storage_mode("git")
+
+# Option 2: Google Cloud Storage
+# storage_mode("google_cloud")
+# google_cloud_bucket_name(ENV["MATCH_GCS_BUCKET"])
+# google_cloud_keys_file(ENV["MATCH_GCS_KEYS_FILE"])
+
+# Option 3: Amazon S3
+# storage_mode("s3")
+# s3_bucket(ENV["MATCH_S3_BUCKET"])
+# s3_region(ENV["MATCH_S3_REGION"])
+# s3_access_key(ENV["MATCH_S3_ACCESS_KEY"])
+# s3_secret_access_key(ENV["MATCH_S3_SECRET_KEY"])
+
+# Certificate Type
+type("appstore") # Can be: appstore, adhoc, development, enterprise
+
+# App Identifier
+app_identifier(["com.poultry.buyer"])
+
+# Team Configuration
+team_id(ENV["APPLE_TEAM_ID"])
+
+# Username (Apple ID)
+username(ENV["APPLE_ID"] || "developer@poultry-platform.com")
+
+# Platform
+platform("ios")
+
+# Git Branch (useful for separating environments)
+git_branch("main")
+
+# Clone depth (speeds up clone)
+shallow_clone(true)
+
+# Force overwrite existing profiles
+force_for_new_devices(true)
+
+# Read-only mode (set to true in CI to prevent accidental changes)
+readonly(ENV["CI"] == "true")
+
+# Keychain name for CI
+keychain_name(ENV["MATCH_KEYCHAIN_NAME"] || "login.keychain")

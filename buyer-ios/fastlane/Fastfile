@@ -1,0 +1,436 @@
+# Poultry Buyer iOS - Fastlane Configuration
+#
+# This Fastfile defines all the automation tasks for building, testing,
+# and deploying the Poultry Buyer iOS app to the App Store.
+#
+# Usage:
+#   bundle exec fastlane <lane_name>
+#
+# Examples:
+#   bundle exec fastlane test                    # Run tests
+#   bundle exec fastlane build_debug             # Build debug IPA
+#   bundle exec fastlane build_release           # Build release IPA
+#   bundle exec fastlane deploy_testflight       # Deploy to TestFlight
+#   bundle exec fastlane deploy_app_store        # Deploy to App Store
+
+default_platform(:ios)
+
+# =============================================================================
+# Constants
+# =============================================================================
+
+APP_IDENTIFIER = "com.poultry.buyer"
+SCHEME = "PoultryBuyer"
+PROJECT_PATH = "PoultryBuyer.xcodeproj"
+WORKSPACE_PATH = "PoultryBuyer.xcworkspace"
+TEAM_ID = ENV["APPLE_TEAM_ID"]
+ITC_TEAM_ID = ENV["ITC_TEAM_ID"]
+
+# =============================================================================
+# Platform Configuration
+# =============================================================================
+
+platform :ios do
+  # ---------------------------------------------------------------------------
+  # Pre-actions
+  # ---------------------------------------------------------------------------
+
+  before_all do
+    # Ensure Xcode is properly configured
+    setup_ci if ENV["CI"]
+  end
+
+  # ---------------------------------------------------------------------------
+  # Testing Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Run all unit tests"
+  lane :test do
+    scan(
+      scheme: SCHEME,
+      devices: ["iPhone 15"],
+      clean: true,
+      code_coverage: true,
+      output_directory: "./test_output",
+      output_types: "html,junit"
+    )
+  end
+
+  desc "Run UI tests"
+  lane :ui_test do
+    scan(
+      scheme: SCHEME,
+      devices: ["iPhone 15"],
+      clean: true,
+      only_testing: ["PoultryBuyerUITests"]
+    )
+  end
+
+  desc "Run all quality checks (tests + lint)"
+  lane :check do
+    swiftlint(
+      mode: :lint,
+      config_file: ".swiftlint.yml",
+      raise_if_swiftlint_error: true
+    )
+    test
+  end
+
+  # ---------------------------------------------------------------------------
+  # Code Signing Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Sync development certificates and profiles"
+  lane :sync_development do
+    match(
+      type: "development",
+      app_identifier: APP_IDENTIFIER,
+      readonly: is_ci
+    )
+  end
+
+  desc "Sync App Store certificates and profiles"
+  lane :sync_appstore do
+    match(
+      type: "appstore",
+      app_identifier: APP_IDENTIFIER,
+      readonly: is_ci
+    )
+  end
+
+  desc "Sync Ad-Hoc certificates and profiles"
+  lane :sync_adhoc do
+    match(
+      type: "adhoc",
+      app_identifier: APP_IDENTIFIER,
+      readonly: is_ci
+    )
+  end
+
+  desc "Regenerate all certificates and profiles"
+  lane :regenerate_certs do
+    match(type: "development", app_identifier: APP_IDENTIFIER, force: true)
+    match(type: "adhoc", app_identifier: APP_IDENTIFIER, force: true)
+    match(type: "appstore", app_identifier: APP_IDENTIFIER, force: true)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Build Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Build debug version"
+  lane :build_debug do
+    sync_development
+
+    gym(
+      scheme: SCHEME,
+      configuration: "Debug",
+      export_method: "development",
+      output_directory: "./build",
+      output_name: "PoultryBuyer-Debug.ipa",
+      clean: true
+    )
+
+    UI.success "Debug build completed successfully!"
+  end
+
+  desc "Build release version for Ad-Hoc distribution"
+  lane :build_adhoc do
+    sync_adhoc
+
+    # Increment build number
+    increment_build_number_in_xcodeproj
+
+    gym(
+      scheme: SCHEME,
+      configuration: "Release",
+      export_method: "ad-hoc",
+      output_directory: "./build",
+      output_name: "PoultryBuyer-AdHoc.ipa",
+      clean: true,
+      include_bitcode: false,
+      include_symbols: true
+    )
+
+    UI.success "Ad-Hoc build completed successfully!"
+  end
+
+  desc "Build release version for App Store"
+  lane :build_release do
+    sync_appstore
+
+    # Increment build number
+    increment_build_number_in_xcodeproj
+
+    gym(
+      scheme: SCHEME,
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "./build",
+      output_name: "PoultryBuyer-AppStore.ipa",
+      clean: true,
+      include_bitcode: true,
+      include_symbols: true
+    )
+
+    UI.success "App Store build completed successfully!"
+  end
+
+  # ---------------------------------------------------------------------------
+  # Deployment Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Deploy to TestFlight for internal testing"
+  lane :deploy_testflight_internal do
+    build_release
+
+    upload_to_testflight(
+      app_identifier: APP_IDENTIFIER,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      notify_external_testers: false,
+      changelog: get_changelog
+    )
+
+    UI.success "Successfully uploaded to TestFlight (Internal)!"
+    slack_notification(message: "Poultry Buyer iOS uploaded to TestFlight (Internal)")
+  end
+
+  desc "Deploy to TestFlight for external beta testing"
+  lane :deploy_testflight do
+    # Ensure tests pass before deployment
+    check
+
+    build_release
+
+    upload_to_testflight(
+      app_identifier: APP_IDENTIFIER,
+      skip_waiting_for_build_processing: false,
+      distribute_external: true,
+      groups: ["Beta Testers"],
+      notify_external_testers: true,
+      changelog: get_changelog
+    )
+
+    UI.success "Successfully uploaded to TestFlight (External)!"
+    slack_notification(message: "Poultry Buyer iOS uploaded to TestFlight for beta testing")
+  end
+
+  desc "Deploy to App Store for review"
+  lane :deploy_app_store do
+    # Ensure tests pass before deployment
+    check
+
+    build_release
+
+    upload_to_app_store(
+      app_identifier: APP_IDENTIFIER,
+      skip_binary_upload: false,
+      skip_screenshots: true,
+      skip_metadata: false,
+      force: true,
+      submit_for_review: false,
+      automatic_release: false,
+      precheck_include_in_app_purchases: false
+    )
+
+    UI.success "Successfully uploaded to App Store!"
+    slack_notification(message: "Poultry Buyer iOS uploaded to App Store for review")
+  end
+
+  desc "Submit for App Store review"
+  lane :submit_for_review do
+    upload_to_app_store(
+      app_identifier: APP_IDENTIFIER,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: true,
+      submit_for_review: true,
+      automatic_release: false,
+      submission_information: {
+        add_id_info_uses_idfa: false,
+        export_compliance_encryption_updated: false,
+        export_compliance_uses_encryption: false
+      }
+    )
+
+    UI.success "Successfully submitted for App Store review!"
+    slack_notification(message: "Poultry Buyer iOS submitted for App Store review")
+  end
+
+  desc "Release approved app to App Store"
+  lane :release_to_app_store do
+    deliver(
+      app_identifier: APP_IDENTIFIER,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: true,
+      force: true,
+      phased_release: true,
+      automatic_release: true
+    )
+
+    UI.success "App released to App Store with phased release!"
+    slack_notification(message: "Poultry Buyer iOS released to App Store")
+  end
+
+  # ---------------------------------------------------------------------------
+  # Metadata Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Upload metadata and screenshots to App Store Connect"
+  lane :upload_metadata do
+    deliver(
+      app_identifier: APP_IDENTIFIER,
+      skip_binary_upload: true,
+      skip_screenshots: false,
+      skip_metadata: false,
+      force: true
+    )
+
+    UI.success "Metadata uploaded successfully!"
+  end
+
+  desc "Download current metadata from App Store Connect"
+  lane :download_metadata do
+    deliver(
+      app_identifier: APP_IDENTIFIER,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: true,
+      run_precheck_before_submit: false
+    )
+
+    UI.success "Metadata downloaded successfully!"
+  end
+
+  desc "Take and upload screenshots"
+  lane :screenshots do
+    capture_screenshots(
+      scheme: SCHEME,
+      devices: [
+        "iPhone 15 Pro Max",
+        "iPhone 15 Pro",
+        "iPhone SE (3rd generation)",
+        "iPad Pro (12.9-inch) (6th generation)",
+        "iPad Pro (11-inch) (4th generation)"
+      ],
+      languages: ["en-US"],
+      output_directory: "./fastlane/screenshots",
+      clear_previous_screenshots: true
+    )
+
+    frame_screenshots(
+      path: "./fastlane/screenshots"
+    )
+  end
+
+  # ---------------------------------------------------------------------------
+  # Utility Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Increment version number"
+  lane :bump_version do |options|
+    bump_type = options[:type] || "patch"
+
+    increment_version_number_in_xcodeproj(
+      bump_type: bump_type
+    )
+
+    version = get_version_number(xcodeproj: PROJECT_PATH)
+    UI.success "Version bumped to #{version}"
+  end
+
+  desc "Increment build number"
+  lane :bump_build do
+    increment_build_number_in_xcodeproj
+    build = get_build_number(xcodeproj: PROJECT_PATH)
+    UI.success "Build number bumped to #{build}"
+  end
+
+  desc "Get current version information"
+  lane :version_info do
+    version = get_version_number(xcodeproj: PROJECT_PATH)
+    build = get_build_number(xcodeproj: PROJECT_PATH)
+
+    UI.important "Current Version Information:"
+    UI.message "Version: #{version}"
+    UI.message "Build: #{build}"
+  end
+
+  desc "Register new device for development"
+  lane :register_device do
+    device_name = prompt(text: "Enter device name: ")
+    device_udid = prompt(text: "Enter device UDID: ")
+
+    register_devices(
+      devices: {
+        device_name => device_udid
+      }
+    )
+
+    # Refresh profiles
+    match(type: "development", force_for_new_devices: true)
+    match(type: "adhoc", force_for_new_devices: true)
+
+    UI.success "Device registered and profiles refreshed!"
+  end
+
+  desc "Clean build artifacts"
+  lane :clean do
+    clear_derived_data
+    sh("rm -rf ../build")
+    UI.success "Build cleaned successfully!"
+  end
+
+  # ---------------------------------------------------------------------------
+  # Error Handling
+  # ---------------------------------------------------------------------------
+
+  error do |lane, exception|
+    slack_notification(
+      message: "Fastlane error in lane '#{lane}': #{exception.message}",
+      success: false
+    )
+  end
+
+  # ---------------------------------------------------------------------------
+  # Helper Methods
+  # ---------------------------------------------------------------------------
+
+  private_lane :increment_build_number_in_xcodeproj do
+    # Get current build number
+    current_build = get_build_number(xcodeproj: PROJECT_PATH).to_i
+    new_build = current_build + 1
+
+    increment_build_number(
+      xcodeproj: PROJECT_PATH,
+      build_number: new_build.to_s
+    )
+
+    UI.message "Build number incremented from #{current_build} to #{new_build}"
+    new_build
+  end
+
+  private_lane :get_changelog do
+    # Try to read changelog from file, otherwise use default
+    changelog_path = "./fastlane/metadata/en-US/release_notes.txt"
+    if File.exist?(changelog_path)
+      File.read(changelog_path)
+    else
+      "Bug fixes and performance improvements."
+    end
+  end
+
+  private_lane :slack_notification do |options|
+    # Only send Slack notification if webhook is configured
+    if ENV["SLACK_WEBHOOK_URL"]
+      slack(
+        message: options[:message],
+        success: options[:success] != false,
+        slack_url: ENV["SLACK_WEBHOOK_URL"],
+        default_payloads: [:git_branch, :git_author]
+      )
+    end
+  end
+end

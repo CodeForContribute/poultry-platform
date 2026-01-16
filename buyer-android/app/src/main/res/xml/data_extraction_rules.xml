@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Data extraction rules for Android 12+ (API level 31+).
+   These rules control what data can be transferred to a new device
+   during device-to-device migrations.
+
+   See https://developer.android.com/about/versions/12/backup-restore
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Exclude sensitive authentication data -->
+        <exclude domain="sharedpref" path="secure_auth_prefs.xml"/>
+        <exclude domain="database" path="*.db"/>
+
+        <!-- Include general user preferences -->
+        <include domain="sharedpref" path="."/>
+    </cloud-backup>
+
+    <device-transfer>
+        <!-- Exclude sensitive data from device transfers -->
+        <exclude domain="sharedpref" path="secure_auth_prefs.xml"/>
+        <exclude domain="database" path="*.db"/>
+
+        <!-- Include user preferences for device migration -->
+        <include domain="sharedpref" path="."/>
+    </device-transfer>
+</data-extraction-rules>

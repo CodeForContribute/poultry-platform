@@ -1,0 +1,68 @@
+# Poultry Buyer iOS - Deliverfile
+#
+# This file configures the deliver action for App Store submissions.
+# For a full list of options, see: https://docs.fastlane.tools/actions/deliver/
+
+# App Information
+app_identifier("com.poultry.buyer")
+
+# Submission Information
+submit_for_review(false)
+automatic_release(false)
+phased_release(true)
+
+# Skip uploading certain elements (can be changed per lane)
+skip_screenshots(false)
+skip_metadata(false)
+skip_binary_upload(false)
+
+# Metadata Configuration
+force(true)
+overwrite_screenshots(true)
+
+# Price Tier (0 = Free)
+price_tier(0)
+
+# App Rating Configuration
+app_rating_config_path("./fastlane/rating_config.json")
+
+# Categories
+primary_category("FOOD_AND_DRINK")
+secondary_category("SHOPPING")
+
+# Copyright
+copyright("#{Time.now.year} Poultry Platform Pvt. Ltd.")
+
+# Trade Representative Contact Information (required for some countries)
+trade_representative_contact_information(
+  first_name: ENV["TRADE_REP_FIRST_NAME"],
+  last_name: ENV["TRADE_REP_LAST_NAME"],
+  address_line1: ENV["TRADE_REP_ADDRESS"],
+  city_name: ENV["TRADE_REP_CITY"],
+  state: ENV["TRADE_REP_STATE"],
+  country: ENV["TRADE_REP_COUNTRY"],
+  postal_code: ENV["TRADE_REP_POSTAL"],
+  phone_number: ENV["TRADE_REP_PHONE"],
+  email_address: ENV["TRADE_REP_EMAIL"]
+)
+
+# App Review Information
+app_review_information(
+  first_name: ENV["REVIEW_FIRST_NAME"],
+  last_name: ENV["REVIEW_LAST_NAME"],
+  phone_number: ENV["REVIEW_PHONE"],
+  email_address: ENV["REVIEW_EMAIL"],
+  demo_user: ENV["REVIEW_DEMO_USER"],
+  demo_password: ENV["REVIEW_DEMO_PASSWORD"],
+  notes: "This app requires phone number verification for login. Please use the demo account provided for testing."
+)
+
+# Submission Information for App Review
+submission_information(
+  add_id_info_uses_idfa: false,
+  export_compliance_encryption_updated: false,
+  export_compliance_uses_encryption: false
+)
+
+# Languages to upload metadata for
+languages(["en-US"])

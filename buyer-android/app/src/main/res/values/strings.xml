@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Poultry Buyer App - String Resources
+
+    This file contains all user-facing strings for the application.
+    Organized by feature area for easy maintenance and localization.
+-->
+<resources>
+    <!-- App Identity -->
+    <string name="app_name">Poultry Buyer</string>
+    <string name="app_name_short">Poultry</string>
+    <string name="app_tagline">Fresh Poultry, Direct to You</string>
+
+    <!-- Content Descriptions for Accessibility -->
+    <string name="cd_app_logo">Poultry Buyer application logo</string>
+    <string name="cd_launcher_icon">Poultry Buyer app icon</string>
+    <string name="cd_navigation_back">Navigate back</string>
+    <string name="cd_navigation_menu">Open navigation menu</string>
+    <string name="cd_close">Close</string>
+    <string name="cd_search">Search for products</string>
+    <string name="cd_cart">Shopping cart</string>
+    <string name="cd_profile">User profile</string>
+    <string name="cd_notifications">Notifications</string>
+    <string name="cd_filter">Filter products</string>
+    <string name="cd_sort">Sort products</string>
+    <string name="cd_refresh">Refresh content</string>
+    <string name="cd_product_image">Product image</string>
+    <string name="cd_seller_avatar">Seller profile picture</string>
+    <string name="cd_rating_stars">Product rating</string>
+    <string name="cd_increase_quantity">Increase quantity</string>
+    <string name="cd_decrease_quantity">Decrease quantity</string>
+    <string name="cd_remove_item">Remove item from cart</string>
+    <string name="cd_add_to_cart">Add to cart</string>
+    <string name="cd_favorite">Add to favorites</string>
+    <string name="cd_share">Share product</string>
+    <string name="cd_call_seller">Call seller</string>
+    <string name="cd_message_seller">Message seller</string>
+    <string name="cd_location_pin">Delivery location</string>
+    <string name="cd_payment_method">Payment method icon</string>
+    <string name="cd_order_status">Order status indicator</string>
+    <string name="cd_success_icon">Success indicator</string>
+    <string name="cd_error_icon">Error indicator</string>
+    <string name="cd_loading">Loading content</string>
+
+    <!-- Navigation Labels -->
+    <string name="nav_home">Home</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_cart">Cart</string>
+    <string name="nav_orders">Orders</string>
+    <string name="nav_profile">Profile</string>
+
+    <!-- Authentication -->
+    <string name="auth_title">Welcome to Poultry Buyer</string>
+    <string name="auth_subtitle">Sign in to start shopping</string>
+    <string name="auth_phone_label">Phone Number</string>
+    <string name="auth_phone_hint">Enter your mobile number</string>
+    <string name="auth_send_otp">Send OTP</string>
+    <string name="auth_verify_otp">Verify OTP</string>
+    <string name="auth_otp_sent">OTP sent to %1$s</string>
+    <string name="auth_resend_otp">Resend OTP</string>
+    <string name="auth_resend_in">Resend in %1$d seconds</string>
+    <string name="auth_terms_prefix">By continuing, you agree to our</string>
+    <string name="auth_terms_link">Terms of Service</string>
+    <string name="auth_privacy_link">Privacy Policy</string>
+
+    <!-- Home Screen -->
+    <string name="home_greeting">Hello, %1$s!</string>
+    <string name="home_greeting_default">Hello!</string>
+    <string name="home_search_hint">Search for chicken, eggs, and more...</string>
+    <string name="home_categories">Categories</string>
+    <string name="home_featured">Featured Products</string>
+    <string name="home_nearby">Sellers Near You</string>
+    <string name="home_deals">Today\'s Deals</string>
+    <string name="home_see_all">See All</string>
+
+    <!-- Product Categories -->
+    <string name="category_all">All</string>
+    <string name="category_chicken">Chicken</string>
+    <string name="category_eggs">Eggs</string>
+    <string name="category_duck">Duck</string>
+    <string name="category_turkey">Turkey</string>
+    <string name="category_quail">Quail</string>
+    <string name="category_processed">Processed</string>
+
+    <!-- Product Details -->
+    <string name="product_price_per_kg">per kg</string>
+    <string name="product_price_per_piece">per piece</string>
+    <string name="product_price_per_dozen">per dozen</string>
+    <string name="product_in_stock">In Stock</string>
+    <string name="product_out_of_stock">Out of Stock</string>
+    <string name="product_limited_stock">Only %1$d left</string>
+    <string name="product_min_order">Min. order: %1$s</string>
+    <string name="product_description">Description</string>
+    <string name="product_specifications">Specifications</string>
+    <string name="product_reviews">Reviews (%1$d)</string>
+    <string name="product_seller_info">Seller Information</string>
+    <string name="product_similar">Similar Products</string>
+    <string name="product_add_to_cart">Add to Cart</string>
+    <string name="product_buy_now">Buy Now</string>
+    <string name="product_quantity">Quantity</string>
+
+    <!-- Cart -->
+    <string name="cart_title">Shopping Cart</string>
+    <string name="cart_empty">Your cart is empty</string>
+    <string name="cart_empty_message">Start shopping to add items to your cart</string>
+    <string name="cart_browse_products">Browse Products</string>
+    <string name="cart_items_count">%1$d items</string>
+    <string name="cart_subtotal">Subtotal</string>
+    <string name="cart_delivery_fee">Delivery Fee</string>
+    <string name="cart_total">Total</string>
+    <string name="cart_checkout">Proceed to Checkout</string>
+    <string name="cart_remove_item">Remove</string>
+    <string name="cart_save_for_later">Save for Later</string>
+    <string name="cart_move_to_cart">Move to Cart</string>
+
+    <!-- Checkout -->
+    <string name="checkout_title">Checkout</string>
+    <string name="checkout_delivery_address">Delivery Address</string>
+    <string name="checkout_add_address">Add New Address</string>
+    <string name="checkout_change_address">Change</string>
+    <string name="checkout_delivery_time">Delivery Time</string>
+    <string name="checkout_payment_method">Payment Method</string>
+    <string name="checkout_order_summary">Order Summary</string>
+    <string name="checkout_place_order">Place Order</string>
+    <string name="checkout_pay_amount">Pay %1$s</string>
+    <string name="checkout_cash_on_delivery">Cash on Delivery</string>
+    <string name="checkout_online_payment">Online Payment</string>
+    <string name="checkout_upi">UPI</string>
+    <string name="checkout_card">Credit/Debit Card</string>
+    <string name="checkout_net_banking">Net Banking</string>
+    <string name="checkout_wallet">Wallet</string>
+
+    <!-- Orders -->
+    <string name="orders_title">My Orders</string>
+    <string name="orders_empty">No orders yet</string>
+    <string name="orders_empty_message">Place your first order today!</string>
+    <string name="orders_active">Active</string>
+    <string name="orders_completed">Completed</string>
+    <string name="orders_cancelled">Cancelled</string>
+    <string name="order_id">Order #%1$s</string>
+    <string name="order_placed">Placed on %1$s</string>
+    <string name="order_status_pending">Order Pending</string>
+    <string name="order_status_confirmed">Order Confirmed</string>
+    <string name="order_status_processing">Processing</string>
+    <string name="order_status_shipped">Shipped</string>
+    <string name="order_status_out_for_delivery">Out for Delivery</string>
+    <string name="order_status_delivered">Delivered</string>
+    <string name="order_status_cancelled">Cancelled</string>
+    <string name="order_track">Track Order</string>
+    <string name="order_reorder">Reorder</string>
+    <string name="order_cancel">Cancel Order</string>
+    <string name="order_help">Need Help?</string>
+    <string name="order_rate">Rate this Order</string>
+
+    <!-- Profile -->
+    <string name="profile_title">Profile</string>
+    <string name="profile_edit">Edit Profile</string>
+    <string name="profile_name">Name</string>
+    <string name="profile_email">Email</string>
+    <string name="profile_phone">Phone</string>
+    <string name="profile_addresses">Saved Addresses</string>
+    <string name="profile_payment_methods">Payment Methods</string>
+    <string name="profile_notifications">Notifications</string>
+    <string name="profile_language">Language</string>
+    <string name="profile_help">Help &amp; Support</string>
+    <string name="profile_about">About</string>
+    <string name="profile_logout">Logout</string>
+    <string name="profile_logout_confirm">Are you sure you want to logout?</string>
+
+    <!-- Common Actions -->
+    <string name="action_ok">OK</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_done">Done</string>
+    <string name="action_continue">Continue</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_yes">Yes</string>
+    <string name="action_no">No</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_view_all">View All</string>
+
+    <!-- Error Messages -->
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_network">No internet connection. Please check your network.</string>
+    <string name="error_server">Server error. Please try again later.</string>
+    <string name="error_timeout">Request timed out. Please try again.</string>
+    <string name="error_invalid_phone">Please enter a valid phone number</string>
+    <string name="error_invalid_otp">Invalid OTP. Please try again.</string>
+    <string name="error_otp_expired">OTP expired. Please request a new one.</string>
+    <string name="error_payment_failed">Payment failed. Please try again.</string>
+    <string name="error_order_failed">Order could not be placed. Please try again.</string>
+    <string name="error_location_permission">Location permission required for delivery</string>
+    <string name="error_empty_cart">Your cart is empty</string>
+    <string name="error_out_of_stock">This item is currently out of stock</string>
+
+    <!-- Success Messages -->
+    <string name="success_added_to_cart">Added to cart</string>
+    <string name="success_removed_from_cart">Removed from cart</string>
+    <string name="success_order_placed">Order placed successfully!</string>
+    <string name="success_profile_updated">Profile updated</string>
+    <string name="success_address_saved">Address saved</string>
+    <string name="success_logout">Logged out successfully</string>
+
+    <!-- Units -->
+    <string name="unit_kg">kg</string>
+    <string name="unit_gram">g</string>
+    <string name="unit_piece">pc</string>
+    <string name="unit_dozen">dozen</string>
+    <string name="unit_currency">INR</string>
+    <string name="unit_currency_symbol">Rs.</string>
+
+    <!-- Formatting -->
+    <string name="format_price">Rs. %1$s</string>
+    <string name="format_price_range">Rs. %1$s - Rs. %2$s</string>
+    <string name="format_discount">%1$d%% OFF</string>
+    <string name="format_rating">%1$.1f</string>
+    <string name="format_reviews">(%1$d reviews)</string>
+    <string name="format_distance">%1$.1f km away</string>
+    <string name="format_delivery_time">%1$d-%2$d mins</string>
+
+    <!-- Permissions -->
+    <string name="permission_location_title">Location Permission</string>
+    <string name="permission_location_message">We need your location to show nearby sellers and delivery options</string>
+    <string name="permission_notification_title">Notification Permission</string>
+    <string name="permission_notification_message">Stay updated with order status and exclusive offers</string>
+    <string name="permission_camera_title">Camera Permission</string>
+    <string name="permission_camera_message">Camera access is needed to scan QR codes</string>
+
+    <!-- Notification Channels -->
+    <string name="notification_channel_orders">Order Updates</string>
+    <string name="notification_channel_orders_desc">Notifications about your order status updates</string>
+    <string name="notification_channel_payments">Payment Updates</string>
+    <string name="notification_channel_payments_desc">Notifications about payment status</string>
+    <string name="notification_channel_promotions">Offers and Promotions</string>
+    <string name="notification_channel_promotions_desc">Special offers and promotional notifications</string>
+    <string name="notification_channel_general">General</string>
+    <string name="notification_channel_general_desc">General notifications</string>
+
+    <!-- Payment Screen -->
+    <string name="payment_title">Payment</string>
+    <string name="payment_order_summary">Order Summary</string>
+    <string name="payment_method">Payment Method</string>
+    <string name="payment_razorpay">Pay via Razorpay</string>
+    <string name="payment_razorpay_subtitle">UPI, Cards, Net Banking, Wallets</string>
+    <string name="payment_secured_by">Secured by Razorpay</string>
+    <string name="payment_pay_amount">Pay Rs. %1$s</string>
+    <string name="payment_processing">Processing payment...</string>
+    <string name="payment_verifying">Verifying payment...</string>
+    <string name="payment_success">Payment Successful!</string>
+    <string name="payment_success_message">Your order has been placed successfully</string>
+    <string name="payment_failed">Payment Failed</string>
+    <string name="payment_cancelled">Payment Cancelled</string>
+    <string name="payment_cancelled_message">You cancelled the payment. Your order is still pending.</string>
+    <string name="payment_try_again">Try Again</string>
+    <string name="payment_complete">Complete Payment</string>
+    <string name="payment_view_order">View Order Details</string>
+    <string name="payment_view_orders">View All Orders</string>
+</resources>

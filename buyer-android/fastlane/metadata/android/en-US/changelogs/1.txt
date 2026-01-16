@@ -1,0 +1,14 @@
+Welcome to Poultry Buyer!
+
+This is our first release with the following features:
+- Browse fresh poultry products from local sellers
+- Easy phone number authentication with OTP
+- Add products to cart and checkout
+- Multiple payment options including COD, UPI, and cards
+- Real-time order tracking
+- Save delivery addresses
+- View order history
+
+We're excited to bring you fresh poultry products directly from local farmers!
+
+For any feedback or issues, please contact us at support@poultry-platform.com

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    GoogleService-Info.plist.example
+    PoultryBuyer
+
+    This is a template for the Firebase configuration file.
+
+    SETUP INSTRUCTIONS:
+    1. Go to the Firebase Console (https://console.firebase.google.com)
+    2. Create a new project or select an existing project
+    3. Add an iOS app with your bundle identifier
+    4. Download the GoogleService-Info.plist file
+    5. Replace this example file with the downloaded file (remove .example extension)
+    6. Make sure the file is added to your Xcode project target
+
+    IMPORTANT:
+    - Do NOT commit the actual GoogleService-Info.plist to version control
+    - Add GoogleService-Info.plist to your .gitignore file
+    - Each environment (development, staging, production) should have its own Firebase project
+
+    For CI/CD:
+    - Store the GoogleService-Info.plist content as a secret
+    - Decode and write the file during the build process
+-->
+<plist version="1.0">
+<dict>
+    <!-- Your Firebase API Key -->
+    <key>API_KEY</key>
+    <string>YOUR_API_KEY_HERE</string>
+
+    <!-- Google Cloud Platform Client ID -->
+    <key>GCM_SENDER_ID</key>
+    <string>YOUR_GCM_SENDER_ID_HERE</string>
+
+    <!-- The bundle ID of your app -->
+    <key>BUNDLE_ID</key>
+    <string>com.poultryplatform.buyer</string>
+
+    <!-- Firebase Project ID -->
+    <key>PROJECT_ID</key>
+    <string>poultry-platform-buyer</string>
+
+    <!-- Firebase Storage Bucket -->
+    <key>STORAGE_BUCKET</key>
+    <string>poultry-platform-buyer.appspot.com</string>
+
+    <!-- Set to YES to allow Firebase to collect analytics -->
+    <key>IS_ADS_ENABLED</key>
+    <false/>
+
+    <!-- Set to YES to enable Analytics -->
+    <key>IS_ANALYTICS_ENABLED</key>
+    <true/>
+
+    <!-- Set to YES to enable App Check -->
+    <key>IS_APPINVITE_ENABLED</key>
+    <true/>
+
+    <!-- Set to YES to enable Google Cloud Messaging -->
+    <key>IS_GCM_ENABLED</key>
+    <true/>
+
+    <!-- Set to YES to enable Google Sign-In -->
+    <key>IS_SIGNIN_ENABLED</key>
+    <false/>
+
+    <!-- Google App ID (Firebase App ID) -->
+    <key>GOOGLE_APP_ID</key>
+    <string>1:YOUR_PROJECT_NUMBER:ios:YOUR_APP_HASH</string>
+
+    <!-- Firebase Database URL (if using Realtime Database) -->
+    <key>DATABASE_URL</key>
+    <string>https://poultry-platform-buyer.firebaseio.com</string>
+
+    <!-- Reversed client ID (for Google Sign-In, if used) -->
+    <key>REVERSED_CLIENT_ID</key>
+    <string>com.googleusercontent.apps.YOUR_CLIENT_ID</string>
+
+    <!-- The client ID of your app -->
+    <key>CLIENT_ID</key>
+    <string>YOUR_CLIENT_ID.apps.googleusercontent.com</string>
+
+    <!-- Information Plist Version -->
+    <key>PLIST_VERSION</key>
+    <string>1</string>
+</dict>
+</plist>

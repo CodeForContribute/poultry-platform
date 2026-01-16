@@ -10,6 +10,7 @@ import com.poultry.product.repository.PriceHistoryRepository;
 import com.poultry.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,22 +39,14 @@ public class PricingService {
             throw BusinessException.forbidden("You don't have access to this product");
         }
 
-        Instant effectiveFrom = request.getEffectiveFrom() != null
-                ? request.getEffectiveFrom()
-                : Instant.now();
+        Instant now = Instant.now();
+        Instant effectiveFrom = request.getEffectiveFrom() != null ? request.getEffectiveFrom() : now;
 
-        // If scheduling future price, close current active price at that time
-        if (effectiveFrom.isAfter(Instant.now())) {
-            priceHistoryRepository.findCurrentPrice(productId, Instant.now())
-                    .ifPresent(currentPrice -> {
-                        if (currentPrice.getEffectiveTo() == null
-                                || currentPrice.getEffectiveTo().isAfter(effectiveFrom)) {
-                            // We can't update, so we need to handle this differently
-                            log.info("Scheduling price change for product: {} from: {}",
-                                    productId, effectiveFrom);
-                        }
-                    });
+        if (priceHistoryRepository.existsByProductIdAndEffectiveFrom(productId, effectiveFrom)) {
+            throw BusinessException.conflict("A price is already scheduled at the requested effective time");
         }
+
+        PriceHistory nextPrice = priceHistoryRepository.findNextPrice(productId, effectiveFrom).orElse(null);
 
         // Create bulk slabs
         List<PriceHistory.BulkDiscountSlab> bulkSlabs = request.getBulkDiscountSlabs() != null
@@ -66,22 +59,30 @@ public class PricingService {
                 .toList()
                 : List.of();
 
-        // Create new price entry
+        // Close the previously-active/scheduled open-ended price so we don't overlap.
+        // (DB has an EXCLUDE constraint to prevent overlapping effective windows.)
+        priceHistoryRepository.closeOverlappingPriceAt(productId, effectiveFrom);
+
         PriceHistory newPrice = PriceHistory.builder()
                 .productId(productId)
                 .basePrice(request.getBasePrice())
                 .bulkDiscountSlabs(bulkSlabs)
                 .effectiveFrom(effectiveFrom)
+                .effectiveTo(nextPrice != null ? nextPrice.getEffectiveFrom() : null)
                 .createdBy(userId)
                 .build();
 
-        newPrice = priceHistoryRepository.save(newPrice);
+        try {
+            newPrice = priceHistoryRepository.save(newPrice);
+        } catch (DataIntegrityViolationException e) {
+            throw BusinessException.conflict("Price overlaps with an existing price window");
+        }
 
         log.info("Price set for product: {}, effectiveFrom: {}, basePrice: {}",
                 productId, effectiveFrom, request.getBasePrice());
 
         // Send price change notification if effective immediately
-        if (!effectiveFrom.isAfter(Instant.now())) {
+        if (!effectiveFrom.isAfter(now)) {
             sendPriceChangeNotifications(product, newPrice);
         }
 

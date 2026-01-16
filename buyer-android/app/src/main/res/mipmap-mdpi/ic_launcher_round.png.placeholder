@@ -1,0 +1,18 @@
+PLACEHOLDER: Legacy round launcher icon for mdpi density
+======================================================
+
+File: ic_launcher_round.png
+Size: 48x48 pixels
+DPI: ~160
+
+Instructions:
+1. Create a 48x48 pixel circular PNG image
+2. Apply circular mask to the standard icon
+3. Export as PNG-24 with transparency
+
+Design specifications:
+- Same as ic_launcher.png but with circular clipping
+- Ensure content is centered within the circle
+- Background should extend to edges of circle
+
+Generate using Android Studio's Image Asset Studio or design tools like Figma/Sketch.

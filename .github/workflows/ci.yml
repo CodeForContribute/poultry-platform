@@ -9,6 +9,7 @@ on:
 env:
   JAVA_VERSION: '21'
   GRADLE_VERSION: '8.5'
+  NODE_VERSION: '20'
 
 jobs:
   build:
@@ -140,3 +141,80 @@ jobs:
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
+
+  seller-web-tests:
+    name: Seller Web Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        working-directory: ./seller-web
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ./seller-web
+        run: npm test
+
+  buyer-android-tests:
+    name: Buyer Android Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Run unit tests
+        working-directory: ./buyer-android
+        run: ./gradlew test
+
+  buyer-ios-tests:
+    name: Buyer iOS Tests
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Swift Package tests
+        working-directory: ./buyer-ios
+        run: swift test
+
+  buyer-mobile-tests:
+    name: Buyer Mobile Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        working-directory: ./buyer-mobile
+        run: npm install
+
+      - name: Run tests
+        working-directory: ./buyer-mobile
+        run: npm test

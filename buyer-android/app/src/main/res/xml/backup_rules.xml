@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Sample backup rules file; uncomment and customize as necessary.
+   See https://developer.android.com/guide/topics/data/autobackup
+   for documentation.
+
+   Note: These rules apply when backing up to Google Drive or other
+   cloud backup destinations.
+-->
+<full-backup-content>
+    <!-- Exclude sensitive data from backups -->
+    <exclude domain="sharedpref" path="secure_auth_prefs.xml"/>
+    <exclude domain="database" path="*.db"/>
+
+    <!-- Include user preferences -->
+    <include domain="sharedpref" path="."/>
+</full-backup-content>

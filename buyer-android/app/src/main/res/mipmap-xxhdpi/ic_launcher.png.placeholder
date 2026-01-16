@@ -1,0 +1,20 @@
+PLACEHOLDER: Legacy launcher icon for xxhdpi density
+=================================================
+
+File: ic_launcher.png
+Size: 144x144 pixels
+DPI: ~480
+
+Instructions:
+1. Create a 144x144 pixel PNG image
+2. Use the same design as the adaptive icon foreground
+3. Include appropriate padding (typically 12px on each side)
+4. Export as PNG-24 with transparency
+
+Design specifications:
+- Background: #4CAF50 (Green)
+- Foreground: Chicken/poultry icon in #FF6B35 (Orange)
+- Format: PNG with alpha channel
+- Use anti-aliasing for smooth edges
+
+Generate using Android Studio's Image Asset Studio or design tools like Figma/Sketch.

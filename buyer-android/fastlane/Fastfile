@@ -1,0 +1,367 @@
+# Poultry Buyer Android - Fastlane Configuration
+#
+# This Fastfile defines all the automation tasks for building, testing,
+# and deploying the Poultry Buyer Android app to the Google Play Store.
+#
+# Usage:
+#   bundle exec fastlane <lane_name>
+#
+# Examples:
+#   bundle exec fastlane test              # Run tests
+#   bundle exec fastlane build_debug       # Build debug APK
+#   bundle exec fastlane build_release     # Build release AAB
+#   bundle exec fastlane deploy_internal   # Deploy to internal track
+#   bundle exec fastlane deploy_beta       # Deploy to beta track
+#   bundle exec fastlane deploy_production # Deploy to production
+
+default_platform(:android)
+
+# =============================================================================
+# Constants
+# =============================================================================
+
+PACKAGE_NAME = "com.poultry.buyer"
+JSON_KEY_FILE = ENV["GOOGLE_PLAY_JSON_KEY_FILE"] || "fastlane/play-store-credentials.json"
+KEYSTORE_PATH = ENV["KEYSTORE_PATH"] || "../keystore/release.keystore"
+KEYSTORE_ALIAS = ENV["KEYSTORE_ALIAS"] || "poultry-buyer"
+
+# =============================================================================
+# Platform Configuration
+# =============================================================================
+
+platform :android do
+  # ---------------------------------------------------------------------------
+  # Pre-actions
+  # ---------------------------------------------------------------------------
+
+  before_all do
+    # Ensure we're on the correct directory
+    ensure_git_status_clean unless ENV["SKIP_GIT_CHECK"]
+  end
+
+  # ---------------------------------------------------------------------------
+  # Testing Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Run all unit tests"
+  lane :test do
+    gradle(
+      task: "test",
+      build_type: "Debug"
+    )
+  end
+
+  desc "Run instrumented tests on connected device/emulator"
+  lane :instrumented_test do
+    gradle(
+      task: "connectedAndroidTest",
+      build_type: "Debug"
+    )
+  end
+
+  desc "Run lint checks"
+  lane :lint do
+    gradle(
+      task: "lint",
+      build_type: "Debug"
+    )
+  end
+
+  desc "Run all quality checks (tests + lint)"
+  lane :check do
+    lint
+    test
+  end
+
+  # ---------------------------------------------------------------------------
+  # Build Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Build debug APK"
+  lane :build_debug do
+    gradle(
+      task: "assemble",
+      build_type: "Debug"
+    )
+
+    UI.success "Debug APK built successfully!"
+    UI.message "APK location: #{lane_context[SharedValues::GRADLE_APK_OUTPUT_PATH]}"
+  end
+
+  desc "Build release APK"
+  lane :build_release_apk do
+    gradle(
+      task: "assemble",
+      build_type: "Release",
+      properties: {
+        "android.injected.signing.store.file" => KEYSTORE_PATH,
+        "android.injected.signing.store.password" => ENV["KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => KEYSTORE_ALIAS,
+        "android.injected.signing.key.password" => ENV["KEY_PASSWORD"]
+      }
+    )
+
+    UI.success "Release APK built successfully!"
+    UI.message "APK location: #{lane_context[SharedValues::GRADLE_APK_OUTPUT_PATH]}"
+  end
+
+  desc "Build release AAB (Android App Bundle) for Play Store"
+  lane :build_release do
+    # Increment version code
+    increment_version_code_in_gradle
+
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      properties: {
+        "android.injected.signing.store.file" => KEYSTORE_PATH,
+        "android.injected.signing.store.password" => ENV["KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => KEYSTORE_ALIAS,
+        "android.injected.signing.key.password" => ENV["KEY_PASSWORD"]
+      }
+    )
+
+    UI.success "Release AAB built successfully!"
+    UI.message "AAB location: #{lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH]}"
+  end
+
+  # ---------------------------------------------------------------------------
+  # Deployment Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Deploy to Internal Testing track"
+  lane :deploy_internal do
+    build_release
+
+    upload_to_play_store(
+      package_name: PACKAGE_NAME,
+      track: "internal",
+      json_key: JSON_KEY_FILE,
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+
+    UI.success "Successfully deployed to Internal Testing track!"
+    slack_notification(message: "Poultry Buyer Android deployed to Internal Testing")
+  end
+
+  desc "Deploy to Alpha/Closed Testing track"
+  lane :deploy_alpha do
+    build_release
+
+    upload_to_play_store(
+      package_name: PACKAGE_NAME,
+      track: "alpha",
+      json_key: JSON_KEY_FILE,
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: false,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+
+    UI.success "Successfully deployed to Alpha track!"
+    slack_notification(message: "Poultry Buyer Android deployed to Alpha Testing")
+  end
+
+  desc "Deploy to Beta/Open Testing track"
+  lane :deploy_beta do
+    build_release
+
+    upload_to_play_store(
+      package_name: PACKAGE_NAME,
+      track: "beta",
+      json_key: JSON_KEY_FILE,
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false
+    )
+
+    UI.success "Successfully deployed to Beta track!"
+    slack_notification(message: "Poultry Buyer Android deployed to Beta Testing")
+  end
+
+  desc "Deploy to Production"
+  lane :deploy_production do
+    # Ensure all tests pass before production deployment
+    check
+
+    build_release
+
+    upload_to_play_store(
+      package_name: PACKAGE_NAME,
+      track: "production",
+      json_key: JSON_KEY_FILE,
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false,
+      rollout: "0.1"  # Start with 10% rollout
+    )
+
+    UI.success "Successfully deployed to Production (10% rollout)!"
+    slack_notification(message: "Poultry Buyer Android deployed to Production (10% rollout)")
+  end
+
+  desc "Complete production rollout (100%)"
+  lane :complete_rollout do
+    upload_to_play_store(
+      package_name: PACKAGE_NAME,
+      track: "production",
+      json_key: JSON_KEY_FILE,
+      rollout: "1.0",
+      skip_upload_aab: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+
+    UI.success "Production rollout completed to 100%!"
+    slack_notification(message: "Poultry Buyer Android production rollout completed")
+  end
+
+  desc "Promote internal to beta"
+  lane :promote_internal_to_beta do
+    upload_to_play_store(
+      package_name: PACKAGE_NAME,
+      track: "internal",
+      track_promote_to: "beta",
+      json_key: JSON_KEY_FILE,
+      skip_upload_aab: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+
+    UI.success "Successfully promoted from Internal to Beta!"
+  end
+
+  desc "Promote beta to production"
+  lane :promote_beta_to_production do
+    upload_to_play_store(
+      package_name: PACKAGE_NAME,
+      track: "beta",
+      track_promote_to: "production",
+      json_key: JSON_KEY_FILE,
+      skip_upload_aab: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      rollout: "0.1"
+    )
+
+    UI.success "Successfully promoted from Beta to Production (10% rollout)!"
+  end
+
+  # ---------------------------------------------------------------------------
+  # Metadata Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Upload metadata and screenshots to Play Store"
+  lane :upload_metadata do
+    upload_to_play_store(
+      package_name: PACKAGE_NAME,
+      json_key: JSON_KEY_FILE,
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false
+    )
+
+    UI.success "Metadata uploaded successfully!"
+  end
+
+  desc "Download current metadata from Play Store"
+  lane :download_metadata do
+    download_from_play_store(
+      package_name: PACKAGE_NAME,
+      json_key: JSON_KEY_FILE
+    )
+
+    UI.success "Metadata downloaded successfully!"
+  end
+
+  # ---------------------------------------------------------------------------
+  # Utility Lanes
+  # ---------------------------------------------------------------------------
+
+  desc "Increment version code"
+  lane :increment_version do
+    increment_version_code_in_gradle
+    UI.success "Version code incremented!"
+  end
+
+  desc "Get current version information"
+  lane :version_info do
+    version_code = get_version_code_from_gradle
+    version_name = get_version_name_from_gradle
+
+    UI.important "Current Version Information:"
+    UI.message "Version Name: #{version_name}"
+    UI.message "Version Code: #{version_code}"
+  end
+
+  desc "Clean build artifacts"
+  lane :clean do
+    gradle(task: "clean")
+    UI.success "Build cleaned successfully!"
+  end
+
+  # ---------------------------------------------------------------------------
+  # Error Handling
+  # ---------------------------------------------------------------------------
+
+  error do |lane, exception|
+    slack_notification(
+      message: "Fastlane error in lane '#{lane}': #{exception.message}",
+      success: false
+    )
+  end
+
+  # ---------------------------------------------------------------------------
+  # Helper Methods
+  # ---------------------------------------------------------------------------
+
+  private_lane :increment_version_code_in_gradle do
+    gradle_file = "../app/build.gradle.kts"
+
+    # Read current version code
+    content = File.read(gradle_file)
+    current_version_code = content.match(/versionCode\s*=\s*(\d+)/)[1].to_i
+    new_version_code = current_version_code + 1
+
+    # Update version code
+    new_content = content.gsub(/versionCode\s*=\s*\d+/, "versionCode = #{new_version_code}")
+    File.write(gradle_file, new_content)
+
+    UI.message "Version code incremented from #{current_version_code} to #{new_version_code}"
+    new_version_code
+  end
+
+  private_lane :get_version_code_from_gradle do
+    gradle_file = "../app/build.gradle.kts"
+    content = File.read(gradle_file)
+    content.match(/versionCode\s*=\s*(\d+)/)[1].to_i
+  end
+
+  private_lane :get_version_name_from_gradle do
+    gradle_file = "../app/build.gradle.kts"
+    content = File.read(gradle_file)
+    content.match(/versionName\s*=\s*"([^"]+)"/)[1]
+  end
+
+  private_lane :slack_notification do |options|
+    # Only send Slack notification if webhook is configured
+    if ENV["SLACK_WEBHOOK_URL"]
+      slack(
+        message: options[:message],
+        success: options[:success] != false,
+        slack_url: ENV["SLACK_WEBHOOK_URL"],
+        default_payloads: [:git_branch, :git_author]
+      )
+    end
+  end
+end

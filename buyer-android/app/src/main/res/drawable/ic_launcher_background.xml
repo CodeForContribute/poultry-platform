@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Poultry Buyer App - Launcher Icon Background
+
+    This vector drawable represents the background layer of the adaptive icon.
+    Uses the brand's primary color with a subtle gradient effect.
+
+    Design Guidelines:
+    - Full 108dp viewport for adaptive icon background
+    - Gradient creates depth and visual interest
+    - Colors match the app's primary brand palette
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Primary background fill -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M0,0 L108,0 L108,108 L0,108 Z" />
+
+    <!-- Subtle pattern overlay for depth -->
+    <group
+        android:translateX="0"
+        android:translateY="0">
+
+        <!-- Diagonal accent stripe 1 -->
+        <path
+            android:fillColor="#43A047"
+            android:fillAlpha="0.3"
+            android:pathData="M0,80 L28,108 L0,108 Z" />
+
+        <!-- Diagonal accent stripe 2 -->
+        <path
+            android:fillColor="#66BB6A"
+            android:fillAlpha="0.2"
+            android:pathData="M80,0 L108,0 L108,28 Z" />
+
+        <!-- Center radial highlight -->
+        <path
+            android:fillColor="#81C784"
+            android:fillAlpha="0.15"
+            android:pathData="M54,54 m-40,0 a40,40 0 1,1 80,0 a40,40 0 1,1 -80,0" />
+    </group>
+</vector>

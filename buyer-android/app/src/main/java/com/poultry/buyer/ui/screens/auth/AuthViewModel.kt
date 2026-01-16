@@ -2,8 +2,9 @@ package com.poultry.buyer.ui.screens.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.poultry.buyer.core.data.preferences.TokenManager
+import com.poultry.buyer.core.data.preferences.SecureTokenManager
 import com.poultry.buyer.core.network.ApiService
+import com.poultry.buyer.domain.model.FcmTokenRequest
 import com.poultry.buyer.domain.model.OtpRequest
 import com.poultry.buyer.domain.model.OtpVerifyRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -11,7 +12,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.util.UUID
 import javax.inject.Inject
 
 data class AuthUiState(
@@ -24,7 +24,7 @@ data class AuthUiState(
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val apiService: ApiService,
-    private val tokenManager: TokenManager
+    private val tokenManager: SecureTokenManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUiState())
@@ -82,6 +82,7 @@ class AuthViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
             try {
+                val fcmToken = tokenManager.getFcmToken()
                 val response = apiService.verifyOtp(
                     OtpVerifyRequest(
                         phone = phone,
@@ -89,7 +90,7 @@ class AuthViewModel @Inject constructor(
                         deviceId = getDeviceId(),
                         deviceFingerprint = null,
                         deviceInfo = "Android",
-                        fcmToken = null
+                        fcmToken = fcmToken
                     )
                 )
 
@@ -97,6 +98,10 @@ class AuthViewModel @Inject constructor(
                     val data = response.body()?.data!!
                     tokenManager.saveTokens(data.accessToken, data.refreshToken)
                     tokenManager.saveUser(data.userId, data.name)
+
+                    if (tokenManager.hasPendingFcmToken()) {
+                        sendPendingFcmToken()
+                    }
 
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -133,6 +138,24 @@ class AuthViewModel @Inject constructor(
     }
 
     private fun getDeviceId(): String {
-        return UUID.randomUUID().toString()
+        return tokenManager.getDeviceId()
+    }
+
+    private fun sendPendingFcmToken() {
+        val token = tokenManager.getFcmToken() ?: return
+        viewModelScope.launch {
+            try {
+                val response = apiService.updateFcmToken(
+                    FcmTokenRequest(
+                        fcmToken = token,
+                        deviceId = tokenManager.getDeviceId()
+                    )
+                )
+                if (response.isSuccessful) {
+                    tokenManager.markFcmTokenSent()
+                }
+            } catch (_: Exception) {
+            }
+        }
     }
 }

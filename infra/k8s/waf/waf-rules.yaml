@@ -1,0 +1,260 @@
+# =============================================================================
+# WAF Rules ConfigMap - OWASP Core Rule Set Integration
+# =============================================================================
+# This ConfigMap contains custom WAF rules and OWASP CRS rule exclusions
+# specific to the Poultry Platform API.
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: waf-custom-rules
+  namespace: poultry-platform
+  labels:
+    app: nginx-ingress
+    component: waf
+data:
+  # ==========================================================================
+  # OWASP CRS Rule Exclusions
+  # ==========================================================================
+  # These exclusions prevent false positives for legitimate API operations
+  rule-exclusions.conf: |
+    # ==========================================================================
+    # Rule Exclusions for Poultry Platform API
+    # ==========================================================================
+
+    # Exclude payment-related endpoints from certain rules
+    # Payment data may contain characters that trigger SQL injection rules
+    SecRule REQUEST_URI "^/api/v1/payments" \
+      "id:2000,phase:1,pass,nolog,\
+      ctl:ruleRemoveTargetById=942100;ARGS,\
+      ctl:ruleRemoveTargetById=942190;ARGS,\
+      ctl:ruleRemoveTargetById=942200;ARGS"
+
+    # Exclude address fields from XSS rules (addresses contain special chars)
+    SecRule REQUEST_URI "^/api/v1/buyer/addresses" \
+      "id:2010,phase:1,pass,nolog,\
+      ctl:ruleRemoveTargetById=941100;ARGS:address.line1,\
+      ctl:ruleRemoveTargetById=941100;ARGS:address.line2,\
+      ctl:ruleRemoveTargetById=941100;ARGS:address.landmark"
+
+    # Exclude product search from SQL injection rules (search queries)
+    SecRule REQUEST_URI "^/api/v1/products/search" \
+      "id:2020,phase:1,pass,nolog,\
+      ctl:ruleRemoveTargetById=942100;ARGS:q,\
+      ctl:ruleRemoveTargetById=942190;ARGS:q"
+
+    # Exclude webhook endpoints (external services may send unusual data)
+    SecRule REQUEST_URI "^/api/v1/webhooks/" \
+      "id:2030,phase:1,pass,nolog,\
+      ctl:ruleRemoveById=921110,\
+      ctl:ruleRemoveById=942100,\
+      ctl:ruleRemoveById=942190"
+
+    # Exclude order notes/comments from XSS rules
+    SecRule REQUEST_URI "^/api/v1/(buyer|seller)/orders" \
+      "id:2040,phase:1,pass,nolog,\
+      ctl:ruleRemoveTargetById=941100;ARGS:notes,\
+      ctl:ruleRemoveTargetById=941100;ARGS:cancellationReason,\
+      ctl:ruleRemoveTargetById=941100;ARGS:reason"
+
+  # ==========================================================================
+  # SQL Injection Protection Rules
+  # ==========================================================================
+  sql-injection-rules.conf: |
+    # Enhanced SQL Injection Detection
+    # These rules supplement OWASP CRS SQLi rules
+
+    # Block common SQL keywords in unexpected places
+    SecRule ARGS|ARGS_NAMES "@rx (?i)(\b(union|select|insert|update|delete|drop|alter|create|truncate|exec|execute)\b.*\b(from|into|where|set|table|database)\b)" \
+      "id:3000,phase:2,deny,status:403,log,msg:'SQL Injection - Multiple SQL keywords detected',\
+      tag:'attack-sqli',tag:'OWASP_CRS/WEB_ATTACK/SQL_INJECTION'"
+
+    # Block SQL comment sequences
+    SecRule ARGS "@rx (--|#|\/\*)" \
+      "id:3010,phase:2,deny,status:403,log,msg:'SQL Injection - SQL comment detected',\
+      tag:'attack-sqli'"
+
+    # Block UNION-based injection attempts
+    SecRule ARGS "@rx (?i)union\s+(all\s+)?select" \
+      "id:3020,phase:2,deny,status:403,log,msg:'SQL Injection - UNION SELECT detected',\
+      tag:'attack-sqli'"
+
+    # Block stacked queries
+    SecRule ARGS "@rx ;\s*(select|insert|update|delete|drop)" \
+      "id:3030,phase:2,deny,status:403,log,msg:'SQL Injection - Stacked query detected',\
+      tag:'attack-sqli'"
+
+    # Block blind SQL injection time-based techniques
+    SecRule ARGS "@rx (?i)(sleep|benchmark|waitfor|delay)\s*\(" \
+      "id:3040,phase:2,deny,status:403,log,msg:'SQL Injection - Time-based injection detected',\
+      tag:'attack-sqli'"
+
+  # ==========================================================================
+  # Cross-Site Scripting (XSS) Protection Rules
+  # ==========================================================================
+  xss-rules.conf: |
+    # Enhanced XSS Detection
+    # These rules supplement OWASP CRS XSS rules
+
+    # Block script tags
+    SecRule ARGS "@rx (?i)<script[^>]*>" \
+      "id:4000,phase:2,deny,status:403,log,msg:'XSS - Script tag detected',\
+      tag:'attack-xss'"
+
+    # Block event handlers
+    SecRule ARGS "@rx (?i)\bon\w+\s*=" \
+      "id:4010,phase:2,deny,status:403,log,msg:'XSS - Event handler detected',\
+      tag:'attack-xss'"
+
+    # Block javascript: protocol
+    SecRule ARGS "@rx (?i)javascript\s*:" \
+      "id:4020,phase:2,deny,status:403,log,msg:'XSS - JavaScript protocol detected',\
+      tag:'attack-xss'"
+
+    # Block data: URLs with script content
+    SecRule ARGS "@rx (?i)data\s*:\s*text/html" \
+      "id:4030,phase:2,deny,status:403,log,msg:'XSS - Data URL with HTML detected',\
+      tag:'attack-xss'"
+
+    # Block SVG-based XSS
+    SecRule ARGS "@rx (?i)<svg[^>]*onload" \
+      "id:4040,phase:2,deny,status:403,log,msg:'XSS - SVG onload detected',\
+      tag:'attack-xss'"
+
+  # ==========================================================================
+  # API Security Rules
+  # ==========================================================================
+  api-security-rules.conf: |
+    # API-Specific Security Rules
+
+    # Enforce JSON content type for API endpoints
+    SecRule REQUEST_URI "^/api/" \
+      "id:5000,phase:1,chain,deny,status:415,log,msg:'API requires JSON content type'"
+      SecRule REQUEST_METHOD "^(POST|PUT|PATCH)$" \
+        "chain"
+        SecRule REQUEST_HEADERS:Content-Type "!@rx ^application/json"
+
+    # Limit request body size for API
+    SecRule REQUEST_URI "^/api/" \
+      "id:5010,phase:1,pass,nolog,\
+      ctl:requestBodyLimit=1048576"
+
+    # Block suspicious JSON patterns
+    SecRule REQUEST_BODY "@rx \$\{" \
+      "id:5020,phase:2,deny,status:400,log,msg:'Potential template injection in JSON'"
+
+    # Validate UUID format in path parameters
+    SecRule REQUEST_URI "^/api/v1/(products|orders|users|sellers)/([^/]+)" \
+      "id:5030,phase:1,chain,deny,status:400,log,msg:'Invalid ID format in URL'"
+      SecRule TX:2 "!@rx ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+    # Block mass assignment attempts (large number of fields)
+    SecRule &ARGS "@gt 50" \
+      "id:5040,phase:2,deny,status:400,log,msg:'Too many parameters - potential mass assignment'"
+
+    # Validate pagination parameters
+    SecRule ARGS:page "!@rx ^[0-9]{1,5}$" \
+      "id:5050,phase:2,deny,status:400,log,msg:'Invalid page parameter'"
+    SecRule ARGS:size "@gt 100" \
+      "id:5051,phase:2,deny,status:400,log,msg:'Page size too large'"
+
+    # Block prototype pollution attempts
+    SecRule ARGS_NAMES "@rx (__proto__|constructor|prototype)" \
+      "id:5060,phase:2,deny,status:400,log,msg:'Potential prototype pollution'"
+
+  # ==========================================================================
+  # Bot Protection Rules
+  # ==========================================================================
+  bot-protection-rules.conf: |
+    # Bot and Scraper Protection
+
+    # Block empty user agents
+    SecRule &REQUEST_HEADERS:User-Agent "@eq 0" \
+      "id:6000,phase:1,deny,status:403,log,msg:'Empty User-Agent header'"
+
+    # Block known bad bots
+    SecRule REQUEST_HEADERS:User-Agent "@rx (?i)(bot|crawler|spider|scraper|harvester)" \
+      "id:6010,phase:1,chain,deny,status:403,log,msg:'Blocked bot User-Agent'"
+      SecRule REQUEST_HEADERS:User-Agent "!@rx (?i)(googlebot|bingbot|yandexbot|duckduckbot)"
+
+    # Block requests without common headers
+    SecRule &REQUEST_HEADERS:Accept "@eq 0" \
+      "id:6020,phase:1,deny,status:403,log,msg:'Missing Accept header'"
+
+    # Block HTTP/1.0 requests (except health checks)
+    SecRule REQUEST_PROTOCOL "@streq HTTP/1.0" \
+      "id:6030,phase:1,chain,deny,status:403,log,msg:'HTTP/1.0 not allowed'"
+      SecRule REQUEST_URI "!@rx ^/(health|liveness|readiness)"
+
+    # Detect headless browsers
+    SecRule REQUEST_HEADERS:User-Agent "@rx (?i)(headless|phantomjs|selenium|puppeteer|playwright)" \
+      "id:6040,phase:1,deny,status:403,log,msg:'Headless browser detected'"
+
+  # ==========================================================================
+  # File Upload Protection Rules
+  # ==========================================================================
+  file-upload-rules.conf: |
+    # File Upload Security
+
+    # Limit file upload size
+    SecRule REQUEST_URI "^/api/v1/uploads" \
+      "id:7000,phase:1,pass,nolog,\
+      ctl:requestBodyLimit=10485760"
+
+    # Block dangerous file extensions
+    SecRule FILES_TMP_CONTENT "@rx (?i)\.(exe|dll|bat|cmd|sh|php|asp|aspx|jsp|cgi|pl|py|rb)$" \
+      "id:7010,phase:2,deny,status:400,log,msg:'Dangerous file extension blocked'"
+
+    # Validate image uploads
+    SecRule REQUEST_URI "^/api/v1/uploads/images" \
+      "id:7020,phase:2,chain,deny,status:400,log,msg:'Invalid image file'"
+      SecRule FILES_TMP_CONTENT "!@rx ^(\x89PNG|\xFF\xD8\xFF|\x47\x49\x46)"
+
+    # Block files with double extensions
+    SecRule FILES "@rx \.[^.]+\.[^.]+$" \
+      "id:7030,phase:2,deny,status:400,log,msg:'Double file extension detected'"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: waf-owasp-crs
+  namespace: poultry-platform
+  labels:
+    app: nginx-ingress
+    component: waf
+data:
+  # Note: In production, OWASP CRS rules should be mounted from an init container
+  # that downloads the latest CRS from the official repository
+  crs-rules-include.conf: |
+    # OWASP Core Rule Set v3.3.x Include Order
+    # These files should be mounted from the CRS distribution
+
+    Include /etc/modsecurity/crs/REQUEST-901-INITIALIZATION.conf
+    Include /etc/modsecurity/crs/REQUEST-903.9001-DRUPAL-EXCLUSION-RULES.conf
+    Include /etc/modsecurity/crs/REQUEST-903.9002-WORDPRESS-EXCLUSION-RULES.conf
+    Include /etc/modsecurity/crs/REQUEST-905-COMMON-EXCEPTIONS.conf
+    Include /etc/modsecurity/crs/REQUEST-910-IP-REPUTATION.conf
+    Include /etc/modsecurity/crs/REQUEST-911-METHOD-ENFORCEMENT.conf
+    Include /etc/modsecurity/crs/REQUEST-912-DOS-PROTECTION.conf
+    Include /etc/modsecurity/crs/REQUEST-913-SCANNER-DETECTION.conf
+    Include /etc/modsecurity/crs/REQUEST-920-PROTOCOL-ENFORCEMENT.conf
+    Include /etc/modsecurity/crs/REQUEST-921-PROTOCOL-ATTACK.conf
+    Include /etc/modsecurity/crs/REQUEST-930-APPLICATION-ATTACK-LFI.conf
+    Include /etc/modsecurity/crs/REQUEST-931-APPLICATION-ATTACK-RFI.conf
+    Include /etc/modsecurity/crs/REQUEST-932-APPLICATION-ATTACK-RCE.conf
+    Include /etc/modsecurity/crs/REQUEST-933-APPLICATION-ATTACK-PHP.conf
+    Include /etc/modsecurity/crs/REQUEST-934-APPLICATION-ATTACK-NODEJS.conf
+    Include /etc/modsecurity/crs/REQUEST-941-APPLICATION-ATTACK-XSS.conf
+    Include /etc/modsecurity/crs/REQUEST-942-APPLICATION-ATTACK-SQLI.conf
+    Include /etc/modsecurity/crs/REQUEST-943-APPLICATION-ATTACK-SESSION-FIXATION.conf
+    Include /etc/modsecurity/crs/REQUEST-944-APPLICATION-ATTACK-JAVA.conf
+    Include /etc/modsecurity/crs/REQUEST-949-BLOCKING-EVALUATION.conf
+    Include /etc/modsecurity/crs/RESPONSE-950-DATA-LEAKAGES.conf
+    Include /etc/modsecurity/crs/RESPONSE-951-DATA-LEAKAGES-SQL.conf
+    Include /etc/modsecurity/crs/RESPONSE-952-DATA-LEAKAGES-JAVA.conf
+    Include /etc/modsecurity/crs/RESPONSE-953-DATA-LEAKAGES-PHP.conf
+    Include /etc/modsecurity/crs/RESPONSE-954-DATA-LEAKAGES-IIS.conf
+    Include /etc/modsecurity/crs/RESPONSE-959-BLOCKING-EVALUATION.conf
+    Include /etc/modsecurity/crs/RESPONSE-980-CORRELATION.conf

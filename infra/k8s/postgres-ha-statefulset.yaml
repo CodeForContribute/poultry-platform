@@ -1,0 +1,636 @@
+---
+# PostgreSQL High Availability Configuration with Patroni
+# This provides automatic failover, streaming replication, and leader election
+#
+# Components:
+# - Patroni for HA management and automatic failover
+# - Streaming replication for data redundancy
+# - etcd for distributed consensus (or use existing etcd/kubernetes endpoints)
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-ha-config
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: poultry-platform
+data:
+  # Patroni configuration
+  patroni.yml: |
+    scope: poultry-postgres-cluster
+    namespace: /poultry/
+    name: ${HOSTNAME}
+
+    restapi:
+      listen: 0.0.0.0:8008
+      connect_address: ${HOSTNAME}.postgres-ha-headless.poultry-platform.svc.cluster.local:8008
+      authentication:
+        username: patroni
+        password: ${PATRONI_REST_PASSWORD}
+
+    etcd3:
+      hosts:
+        - etcd-0.etcd-headless.poultry-platform.svc.cluster.local:2379
+        - etcd-1.etcd-headless.poultry-platform.svc.cluster.local:2379
+        - etcd-2.etcd-headless.poultry-platform.svc.cluster.local:2379
+
+    # Alternative: Use Kubernetes API for leader election
+    # kubernetes:
+    #   namespace: poultry-platform
+    #   labels:
+    #     app.kubernetes.io/name: postgres
+    #   use_endpoints: true
+
+    bootstrap:
+      dcs:
+        ttl: 30
+        loop_wait: 10
+        retry_timeout: 10
+        maximum_lag_on_failover: 1048576
+        synchronous_mode: false
+        synchronous_mode_strict: false
+        postgresql:
+          use_pg_rewind: true
+          use_slots: true
+          parameters:
+            max_connections: 200
+            shared_buffers: 512MB
+            effective_cache_size: 1536MB
+            maintenance_work_mem: 128MB
+            checkpoint_completion_target: 0.9
+            wal_buffers: 16MB
+            default_statistics_target: 100
+            random_page_cost: 1.1
+            effective_io_concurrency: 200
+            min_wal_size: 1GB
+            max_wal_size: 4GB
+            max_worker_processes: 4
+            max_parallel_workers_per_gather: 2
+            max_parallel_workers: 4
+            max_parallel_maintenance_workers: 2
+            wal_level: replica
+            hot_standby: "on"
+            max_wal_senders: 10
+            max_replication_slots: 10
+            hot_standby_feedback: "on"
+            archive_mode: "on"
+            archive_command: "/scripts/archive_wal.sh %p %f"
+            archive_timeout: 60
+            log_statement: ddl
+            log_min_duration_statement: 1000
+            log_checkpoints: "on"
+            log_connections: "on"
+            log_disconnections: "on"
+            log_lock_waits: "on"
+            log_temp_files: 0
+            log_autovacuum_min_duration: 0
+            shared_preload_libraries: 'pg_stat_statements'
+
+      initdb:
+        - encoding: UTF8
+        - data-checksums
+        - locale: en_US.UTF-8
+
+      pg_hba:
+        - local   all         all                   trust
+        - host    all         all         0.0.0.0/0 md5
+        - host    replication replicator  0.0.0.0/0 md5
+        - host    all         all         ::0/0     md5
+
+      users:
+        admin:
+          password: ${POSTGRES_ADMIN_PASSWORD}
+          options:
+            - createrole
+            - createdb
+        replicator:
+          password: ${POSTGRES_REPLICATOR_PASSWORD}
+          options:
+            - replication
+
+    postgresql:
+      listen: 0.0.0.0:5432
+      connect_address: ${HOSTNAME}.postgres-ha-headless.poultry-platform.svc.cluster.local:5432
+      data_dir: /var/lib/postgresql/data/pgdata
+      bin_dir: /usr/lib/postgresql/16/bin
+      config_dir: /var/lib/postgresql/data/pgdata
+      pgpass: /tmp/pgpass
+      authentication:
+        replication:
+          username: replicator
+          password: ${POSTGRES_REPLICATOR_PASSWORD}
+        superuser:
+          username: postgres
+          password: ${POSTGRES_PASSWORD}
+        rewind:
+          username: postgres
+          password: ${POSTGRES_PASSWORD}
+      parameters:
+        unix_socket_directories: '/var/run/postgresql'
+      create_replica_methods:
+        - basebackup
+      basebackup:
+        checkpoint: 'fast'
+        max-rate: '100M'
+
+    watchdog:
+      mode: off
+
+    tags:
+      nofailover: false
+      noloadbalance: false
+      clonefrom: false
+      nosync: false
+
+  # WAL archiving script
+  archive_wal.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    WAL_FILE="$1"
+    WAL_NAME="$2"
+
+    # Configure MinIO client
+    mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4 2>/dev/null
+
+    # Upload WAL file
+    mc cp "${WAL_FILE}" "backup/${S3_BUCKET}/wal-archive/${WAL_NAME}"
+
+    exit 0
+
+  # WAL restore script
+  restore_wal.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    WAL_NAME="$1"
+    DEST_PATH="$2"
+
+    # Configure MinIO client
+    mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4 2>/dev/null
+
+    # Download WAL file
+    mc cp "backup/${S3_BUCKET}/wal-archive/${WAL_NAME}" "${DEST_PATH}"
+
+    exit 0
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-ha-secrets
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+type: Opaque
+stringData:
+  # Replace these with actual secure passwords
+  POSTGRES_PASSWORD: "REPLACE_WITH_POSTGRES_PASSWORD"
+  POSTGRES_ADMIN_PASSWORD: "REPLACE_WITH_ADMIN_PASSWORD"
+  POSTGRES_REPLICATOR_PASSWORD: "REPLACE_WITH_REPLICATOR_PASSWORD"
+  PATRONI_REST_PASSWORD: "REPLACE_WITH_PATRONI_PASSWORD"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-ha
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: poultry-platform
+    app.kubernetes.io/managed-by: patroni
+  annotations:
+    description: "PostgreSQL HA cluster managed by Patroni"
+spec:
+  serviceName: postgres-ha-headless
+  replicas: 3
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/component: database
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: poultry-platform
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9187"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: postgres-ha-sa
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: postgres
+                  app.kubernetes.io/component: database
+              topologyKey: kubernetes.io/hostname
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: postgres
+                    app.kubernetes.io/component: database
+                topologyKey: topology.kubernetes.io/zone
+      initContainers:
+        - name: init-permissions
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              chown -R 999:999 /var/lib/postgresql/data
+              chmod 700 /var/lib/postgresql/data
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+      containers:
+        - name: postgres
+          image: ghcr.io/zalando/spilo-16:3.2-p1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+            - name: patroni
+              containerPort: 8008
+              protocol: TCP
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: PGHOST
+              value: /var/run/postgresql
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: PATRONI_KUBERNETES_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PATRONI_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: PATRONI_POSTGRESQL_DATA_DIR
+              value: /var/lib/postgresql/data/pgdata
+            - name: PATRONI_POSTGRESQL_PGPASS
+              value: /tmp/pgpass
+            - name: PATRONI_SCOPE
+              value: poultry-postgres-cluster
+            - name: PATRONI_REPLICATION_USERNAME
+              value: replicator
+            - name: PATRONI_KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: PATRONI_KUBERNETES_LABELS
+              value: "{app.kubernetes.io/name: postgres, app.kubernetes.io/component: database}"
+            - name: PATRONI_KUBERNETES_USE_ENDPOINTS
+              value: "true"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-ha-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PATRONI_SUPERUSER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-ha-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PATRONI_REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-ha-secrets
+                  key: POSTGRES_REPLICATOR_PASSWORD
+            - name: PATRONI_RESTAPI_USERNAME
+              value: patroni
+            - name: PATRONI_RESTAPI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-ha-secrets
+                  key: PATRONI_REST_PASSWORD
+            # S3/MinIO credentials for WAL archiving
+            - name: S3_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: poultry-config
+                  key: MINIO_ENDPOINT
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: poultry-secrets
+                  key: MINIO_ACCESS_KEY
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: poultry-secrets
+                  key: MINIO_SECRET_KEY
+            - name: S3_BUCKET
+              value: "poultry-backups"
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-config
+              mountPath: /config
+            - name: scripts
+              mountPath: /scripts
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: patroni
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: patroni
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /readiness
+              port: patroni
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+        # Postgres exporter sidecar for Prometheus metrics
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:v0.15.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 9187
+              protocol: TCP
+          env:
+            - name: DATA_SOURCE_URI
+              value: "127.0.0.1:5432/postgres?sslmode=disable"
+            - name: DATA_SOURCE_USER
+              value: "postgres"
+            - name: DATA_SOURCE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-ha-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PG_EXPORTER_EXTEND_QUERY_PATH
+              value: /etc/postgres_exporter/queries.yaml
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          volumeMounts:
+            - name: exporter-queries
+              mountPath: /etc/postgres_exporter
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: postgres-config
+          configMap:
+            name: postgres-ha-config
+        - name: scripts
+          configMap:
+            name: postgres-ha-config
+            defaultMode: 0755
+            items:
+              - key: archive_wal.sh
+                path: archive_wal.sh
+              - key: restore_wal.sh
+                path: restore_wal.sh
+        - name: exporter-queries
+          configMap:
+            name: postgres-exporter-queries
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+        labels:
+          app.kubernetes.io/name: postgres
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 50Gi
+---
+# Service account for Patroni to interact with Kubernetes API
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres-ha-sa
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: postgres-ha-role
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "list", "patch", "update", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["create", "get", "list", "patch", "update", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: postgres-ha-rolebinding
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: postgres-ha-role
+subjects:
+  - kind: ServiceAccount
+    name: postgres-ha-sa
+    namespace: poultry-platform
+---
+# Custom queries for Postgres exporter
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-exporter-queries
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres-exporter
+    app.kubernetes.io/component: monitoring
+data:
+  queries.yaml: |
+    pg_replication:
+      query: |
+        SELECT
+          CASE WHEN NOT pg_is_in_recovery() THEN 0
+          ELSE GREATEST(0, EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())))
+          END AS lag
+      master: true
+      metrics:
+        - lag:
+            usage: "GAUGE"
+            description: "Replication lag behind master in seconds"
+
+    pg_stat_statements:
+      query: |
+        SELECT
+          pg_get_userbyid(userid) as user,
+          pg_database.datname as database,
+          pg_stat_statements.queryid,
+          pg_stat_statements.calls as calls_total,
+          pg_stat_statements.total_exec_time / 1000 as seconds_total,
+          pg_stat_statements.rows as rows_total,
+          pg_stat_statements.blk_read_time / 1000 as block_read_seconds_total,
+          pg_stat_statements.blk_write_time / 1000 as block_write_seconds_total
+        FROM pg_stat_statements
+        JOIN pg_database ON pg_database.oid = pg_stat_statements.dbid
+        WHERE pg_stat_statements.calls > 100
+        ORDER BY pg_stat_statements.total_exec_time DESC
+        LIMIT 100
+      master: true
+      metrics:
+        - user:
+            usage: "LABEL"
+            description: "User who executed the statement"
+        - database:
+            usage: "LABEL"
+            description: "Database in which the statement was executed"
+        - queryid:
+            usage: "LABEL"
+            description: "Internal hash code for the query"
+        - calls_total:
+            usage: "COUNTER"
+            description: "Number of times executed"
+        - seconds_total:
+            usage: "COUNTER"
+            description: "Total time spent in the statement, in seconds"
+        - rows_total:
+            usage: "COUNTER"
+            description: "Total number of rows retrieved or affected"
+        - block_read_seconds_total:
+            usage: "COUNTER"
+            description: "Total time spent reading blocks, in seconds"
+        - block_write_seconds_total:
+            usage: "COUNTER"
+            description: "Total time spent writing blocks, in seconds"
+
+    pg_database_size:
+      query: |
+        SELECT pg_database.datname, pg_database_size(pg_database.datname) as bytes
+        FROM pg_database
+        WHERE pg_database.datname NOT IN ('template0', 'template1')
+      master: true
+      metrics:
+        - datname:
+            usage: "LABEL"
+            description: "Database name"
+        - bytes:
+            usage: "GAUGE"
+            description: "Database size in bytes"
+
+    pg_locks:
+      query: |
+        SELECT
+          pg_database.datname as database,
+          mode,
+          count(*) as count
+        FROM pg_locks
+        JOIN pg_database ON pg_database.oid = pg_locks.database
+        GROUP BY pg_database.datname, mode
+      master: true
+      metrics:
+        - database:
+            usage: "LABEL"
+            description: "Database name"
+        - mode:
+            usage: "LABEL"
+            description: "Lock mode"
+        - count:
+            usage: "GAUGE"
+            description: "Number of locks"
+
+    pg_connections:
+      query: |
+        SELECT
+          datname as database,
+          state,
+          count(*) as count
+        FROM pg_stat_activity
+        WHERE datname IS NOT NULL
+        GROUP BY datname, state
+      master: true
+      metrics:
+        - database:
+            usage: "LABEL"
+            description: "Database name"
+        - state:
+            usage: "LABEL"
+            description: "Connection state"
+        - count:
+            usage: "GAUGE"
+            description: "Number of connections"

@@ -1,0 +1,20 @@
+# Poultry Buyer iOS - Appfile
+#
+# This file contains application-specific configuration for fastlane.
+# Values here are used as defaults across all lanes.
+
+# App Identifier (Bundle ID)
+app_identifier("com.poultry.buyer")
+
+# Apple ID email address for App Store Connect
+apple_id(ENV["APPLE_ID"] || "developer@poultry-platform.com")
+
+# iTunes Connect Team ID
+# Get this from App Store Connect -> Users and Access
+itc_team_id(ENV["ITC_TEAM_ID"])
+
+# Apple Developer Portal Team ID
+# Get this from Apple Developer Portal -> Membership
+team_id(ENV["APPLE_TEAM_ID"])
+
+# For a list of all available options, run `fastlane app_config`

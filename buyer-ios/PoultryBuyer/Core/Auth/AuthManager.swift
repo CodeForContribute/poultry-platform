@@ -2,6 +2,10 @@ import Foundation
 import Combine
 import UserNotifications
 
+#if canImport(FirebaseMessaging)
+import FirebaseMessaging
+#endif
+
 // MARK: - FCM Token Manager
 class FCMTokenManager {
     static let shared = FCMTokenManager()
@@ -13,9 +17,11 @@ class FCMTokenManager {
     /// Get the current FCM token
     /// Returns nil if Firebase is not configured or token not available
     func getToken() -> String? {
-        // When Firebase is configured, uncomment the following:
-        // return Messaging.messaging().fcmToken
+        #if canImport(FirebaseMessaging)
+        return Messaging.messaging().fcmToken
+        #else
         return fcmToken
+        #endif
     }
 
     /// Update FCM token (called from AppDelegate when token refreshes)
@@ -27,6 +33,22 @@ class FCMTokenManager {
                 await updateTokenOnServer(token)
             }
         }
+    }
+
+    func syncTokenIfNeeded() {
+        guard let token = getToken(), AuthManager.shared.isAuthenticated else {
+            return
+        }
+        Task {
+            await updateTokenOnServer(token)
+        }
+    }
+
+    /// Update APNS token for Firebase Messaging
+    func updateAPNSToken(_ token: Data) {
+        #if canImport(FirebaseMessaging)
+        Messaging.messaging().apnsToken = token
+        #endif
     }
 
     private func updateTokenOnServer(_ token: String) async {
@@ -129,6 +151,8 @@ class AuthManager: ObservableObject {
             )
             self.isAuthenticated = true
         }
+
+        FCMTokenManager.shared.syncTokenIfNeeded()
     }
 
     // MARK: - Token Refresh

@@ -8,6 +8,8 @@ resources:
   - configmap.yaml
   - secrets.yaml
   - postgres.yaml
+  - backup/postgres-backup-cronjob.yaml
+  - network-policies.yaml
   - redis.yaml
   - backend-deployment.yaml
   - backend-service.yaml

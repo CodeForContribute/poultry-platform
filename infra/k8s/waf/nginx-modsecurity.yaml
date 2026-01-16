@@ -1,0 +1,229 @@
+# =============================================================================
+# ModSecurity WAF Deployment for NGINX Ingress Controller
+# =============================================================================
+# This configuration deploys ModSecurity Web Application Firewall (WAF)
+# integrated with the NGINX Ingress Controller to protect against common
+# web application attacks including OWASP Top 10 vulnerabilities.
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: modsecurity-config
+  namespace: poultry-platform
+  labels:
+    app: nginx-ingress
+    component: waf
+data:
+  # Main ModSecurity configuration
+  modsecurity.conf: |
+    # Enable ModSecurity in detection mode first, then switch to blocking
+    # SecRuleEngine DetectionOnly  # Use this for testing
+    SecRuleEngine On
+
+    # Set default action for rules
+    SecDefaultAction "phase:1,deny,log"
+    SecDefaultAction "phase:2,deny,log"
+
+    # Request body handling
+    SecRequestBodyAccess On
+    SecRequestBodyLimit 13107200
+    SecRequestBodyNoFilesLimit 131072
+    SecRequestBodyLimitAction Reject
+
+    # Response body handling
+    SecResponseBodyAccess On
+    SecResponseBodyMimeType text/plain text/html text/xml application/json
+    SecResponseBodyLimit 1048576
+    SecResponseBodyLimitAction ProcessPartial
+
+    # File uploads
+    SecTmpDir /tmp/
+    SecDataDir /tmp/
+    SecUploadDir /tmp/
+    SecUploadKeepFiles Off
+    SecUploadFileMode 0600
+
+    # Debug settings (disable in production for performance)
+    SecDebugLogLevel 0
+
+    # Audit logging
+    SecAuditEngine RelevantOnly
+    SecAuditLogRelevantStatus "^(?:5|4(?!04))"
+    SecAuditLogParts ABIJDEFHZ
+    SecAuditLogType Serial
+    SecAuditLog /var/log/modsec/modsec_audit.log
+
+    # Argument separator
+    SecArgumentSeparator &
+
+    # Cookie format version
+    SecCookieFormat 0
+
+    # Unicode mapping
+    SecUnicodeMapFile unicode.mapping 20127
+
+    # Status engine
+    SecStatusEngine On
+
+    # ==========================================================================
+    # CUSTOM RULES FOR POULTRY PLATFORM
+    # ==========================================================================
+
+    # Allow health check endpoints without inspection
+    SecRule REQUEST_URI "^/health" "id:1000,phase:1,pass,nolog,ctl:ruleEngine=Off"
+    SecRule REQUEST_URI "^/actuator/health" "id:1001,phase:1,pass,nolog,ctl:ruleEngine=Off"
+    SecRule REQUEST_URI "^/readiness" "id:1002,phase:1,pass,nolog,ctl:ruleEngine=Off"
+    SecRule REQUEST_URI "^/liveness" "id:1003,phase:1,pass,nolog,ctl:ruleEngine=Off"
+
+    # Block requests with suspicious user agents
+    SecRule REQUEST_HEADERS:User-Agent "@rx (?i)(nikto|sqlmap|nmap|masscan|nessus|openvas)" \
+      "id:1010,phase:1,deny,status:403,log,msg:'Suspicious scanner detected'"
+
+    # Block requests trying to access sensitive files
+    SecRule REQUEST_URI "@rx (?i)\.(git|svn|hg|env|config|bak|backup|old|orig|sql|db)$" \
+      "id:1020,phase:1,deny,status:403,log,msg:'Attempt to access sensitive file'"
+
+    # Require valid Content-Type for POST/PUT/PATCH requests
+    SecRule REQUEST_METHOD "^(POST|PUT|PATCH)$" \
+      "id:1030,phase:1,chain,deny,status:400,log,msg:'Missing or invalid Content-Type'"
+      SecRule &REQUEST_HEADERS:Content-Type "@eq 0"
+
+    # Block oversized cookies (potential header injection)
+    SecRule REQUEST_COOKIES "@rx .{4096,}" \
+      "id:1040,phase:1,deny,status:400,log,msg:'Cookie value too large'"
+
+    # Rate limit login attempts (additional layer to API rate limiting)
+    SecRule REQUEST_URI "^/api/v1/auth/otp" \
+      "id:1050,phase:1,pass,nolog,setvar:ip.auth_attempts=+1,expirevar:ip.auth_attempts=60"
+    SecRule IP:AUTH_ATTEMPTS "@gt 10" \
+      "id:1051,phase:1,deny,status:429,log,msg:'Too many authentication attempts'"
+
+    # Block common path traversal patterns
+    SecRule ARGS "@rx \.\./" \
+      "id:1060,phase:2,deny,status:400,log,msg:'Path traversal attempt'"
+    SecRule REQUEST_URI "@rx \.\./" \
+      "id:1061,phase:1,deny,status:400,log,msg:'Path traversal in URI'"
+
+    # Block potential Server-Side Request Forgery (SSRF)
+    SecRule ARGS "@rx (?i)(127\.0\.0\.1|localhost|0\.0\.0\.0|::1|169\.254\.|10\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[0-1]\.|192\.168\.)" \
+      "id:1070,phase:2,deny,status:400,log,msg:'Potential SSRF attempt'"
+
+    # Block Java serialization attacks
+    SecRule REQUEST_BODY "@rx \xac\xed\x00\x05" \
+      "id:1080,phase:2,deny,status:400,log,msg:'Java serialization payload detected'"
+
+    # Block XML External Entity (XXE) attacks
+    SecRule REQUEST_BODY "@rx <!ENTITY" \
+      "id:1090,phase:2,deny,status:400,log,msg:'XXE attempt detected'"
+    SecRule REQUEST_BODY "@rx SYSTEM\s+[\"']" \
+      "id:1091,phase:2,deny,status:400,log,msg:'XXE SYSTEM entity detected'"
+
+    # API-specific protections
+    # Ensure all API requests have proper authentication header format
+    SecRule REQUEST_URI "^/api/v1/(?!auth/)" \
+      "id:1100,phase:1,chain,pass,nolog"
+      SecRule REQUEST_HEADERS:Authorization "!@rx ^Bearer [A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$" \
+        "id:1101,phase:1,log,msg:'Invalid or missing JWT token format'"
+
+    # Block requests with multiple Content-Type headers (HTTP Request Smuggling)
+    SecRule &REQUEST_HEADERS:Content-Type "@gt 1" \
+      "id:1110,phase:1,deny,status:400,log,msg:'Multiple Content-Type headers'"
+
+    # Block null bytes in request
+    SecRule ARGS "@rx \x00" \
+      "id:1120,phase:2,deny,status:400,log,msg:'Null byte in argument'"
+    SecRule REQUEST_URI "@rx \x00" \
+      "id:1121,phase:1,deny,status:400,log,msg:'Null byte in URI'"
+
+  # Include OWASP Core Rule Set
+  crs-setup.conf: |
+    # OWASP Core Rule Set (CRS) Configuration
+    # Version: 3.3.x compatible
+
+    # Paranoia Level (1-4)
+    # Level 1: Minimal false positives, catches most attacks
+    # Level 2: Moderate, may have some false positives
+    # Level 3: High security, expect false positives
+    # Level 4: Maximum security, many false positives
+    SecAction "id:900000,phase:1,nolog,pass,t:none,setvar:tx.paranoia_level=2"
+
+    # Anomaly scoring threshold
+    # Requests with cumulative score above this are blocked
+    SecAction "id:900110,phase:1,nolog,pass,t:none,\
+      setvar:tx.inbound_anomaly_score_threshold=5,\
+      setvar:tx.outbound_anomaly_score_threshold=4"
+
+    # Enable sampling mode (1 in X requests)
+    # Set to 0 to inspect all requests
+    SecAction "id:900400,phase:1,nolog,pass,t:none,setvar:tx.sampling_percentage=100"
+
+    # Allowed HTTP methods
+    SecAction "id:900200,phase:1,nolog,pass,t:none,\
+      setvar:'tx.allowed_methods=GET HEAD POST OPTIONS PUT PATCH DELETE'"
+
+    # Allowed content types
+    SecAction "id:900220,phase:1,nolog,pass,t:none,\
+      setvar:'tx.allowed_request_content_type=application/x-www-form-urlencoded|multipart/form-data|text/xml|application/xml|application/soap+xml|application/json'"
+
+    # HTTP protocol version
+    SecAction "id:900230,phase:1,nolog,pass,t:none,\
+      setvar:'tx.allowed_http_versions=HTTP/1.0 HTTP/1.1 HTTP/2 HTTP/2.0'"
+
+    # File extensions to block
+    SecAction "id:900240,phase:1,nolog,pass,t:none,\
+      setvar:'tx.restricted_extensions=.asa/ .asax/ .ascx/ .backup/ .bak/ .bat/ .cdx/ .cer/ .cfg/ .cmd/ .com/ .config/ .conf/ .cs/ .csproj/ .csr/ .dat/ .db/ .dbf/ .dll/ .dos/ .htr/ .htw/ .ida/ .idc/ .idq/ .inc/ .ini/ .key/ .licx/ .lnk/ .log/ .mdb/ .old/ .pass/ .pdb/ .pol/ .printer/ .pwd/ .rdb/ .resources/ .resx/ .sql/ .swp/ .sys/ .vb/ .vbs/ .vbproj/ .vsdisco/ .webinfo/ .xsd/ .xsx/'"
+
+    # Block country codes (if needed)
+    # SecGeoLookupDb /etc/modsecurity/GeoIP.dat
+
+    # Enable JSON body parsing
+    SecAction "id:900300,phase:1,nolog,pass,t:none,setvar:tx.enable_json_body_parser=1"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: modsecurity-nginx-config
+  namespace: poultry-platform
+  labels:
+    app: nginx-ingress
+    component: waf
+data:
+  # NGINX configuration for ModSecurity
+  modsecurity-nginx.conf: |
+    # Load ModSecurity module
+    modsecurity on;
+    modsecurity_rules_file /etc/nginx/modsecurity/modsecurity.conf;
+    modsecurity_rules_file /etc/nginx/modsecurity/crs-setup.conf;
+
+    # Include OWASP CRS rules
+    # These are typically mounted from the CRS container or included via ConfigMap
+    # modsecurity_rules_file /etc/nginx/modsecurity/rules/REQUEST-901-INITIALIZATION.conf;
+    # modsecurity_rules_file /etc/nginx/modsecurity/rules/REQUEST-903.9001-DRUPAL-EXCLUSION-RULES.conf;
+    # ... (include other CRS rule files)
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: modsecurity-audit-logs
+  namespace: poultry-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard
+
+---
+# Service account for ModSecurity components
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: modsecurity-sa
+  namespace: poultry-platform
+  labels:
+    app: nginx-ingress
+    component: waf

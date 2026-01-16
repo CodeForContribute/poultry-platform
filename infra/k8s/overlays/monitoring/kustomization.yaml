@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../k8s
+  - ../../k8s/monitoring/prometheus-config.yaml
+  - ../../k8s/monitoring/prometheus-deployment.yaml
+  - ../../k8s/monitoring/grafana-deployment.yaml
+
+configMapGenerator:
+  - name: grafana-dashboards
+    files:
+      - ../../k8s/monitoring/dashboards/backend-overview.json
+  - name: grafana-dashboards-kubernetes
+    files:
+      - kubernetes-placeholder.json
+
+generatorOptions:
+  disableNameSuffixHash: true

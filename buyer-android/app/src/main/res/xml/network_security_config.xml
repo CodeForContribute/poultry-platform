@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Configuration for Poultry Buyer Android App
+
+    This configuration enables SSL certificate pinning for production API endpoints
+    while allowing development flexibility for debug builds.
+
+    IMPORTANT: Update the pin-set digest values with your actual certificate SHA-256 hashes
+    before deploying to production. Use the following command to extract the hash:
+
+    openssl s_client -servername api.poultry-platform.com -connect api.poultry-platform.com:443 | \
+    openssl x509 -pubkey -noout | \
+    openssl pkey -pubin -outform der | \
+    openssl dgst -sha256 -binary | \
+    openssl enc -base64
+-->
+<network-security-config>
+
+    <!-- Base configuration for all domains -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Production API domain configuration with certificate pinning -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.poultry-platform.com</domain>
+        <domain includeSubdomains="true">poultry-platform.com</domain>
+
+        <!-- Certificate pins with backup pins for rotation -->
+        <pin-set expiration="2026-12-31">
+            <!-- Primary certificate pin (current production certificate) -->
+            <pin digest="SHA-256">AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</pin>
+
+            <!-- Backup certificate pin (next certificate for rotation) -->
+            <pin digest="SHA-256">BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=</pin>
+
+            <!-- Root CA pin (Let's Encrypt or your CA) -->
+            <pin digest="SHA-256">CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC=</pin>
+        </pin-set>
+
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Staging API domain configuration -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">staging-api.poultry-platform.com</domain>
+
+        <pin-set expiration="2026-12-31">
+            <!-- Staging certificate pin -->
+            <pin digest="SHA-256">DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD=</pin>
+            <pin digest="SHA-256">EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=</pin>
+        </pin-set>
+
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Debug configuration allowing localhost for development -->
+    <debug-overrides>
+        <trust-anchors>
+            <!-- Trust user-installed certificates for debugging with proxies like Charles -->
+            <certificates src="user" />
+            <certificates src="system" />
+        </trust-anchors>
+    </debug-overrides>
+
+</network-security-config>

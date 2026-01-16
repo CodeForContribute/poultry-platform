@@ -1,0 +1,577 @@
+---
+# Prometheus Configuration
+# Includes scrape configs for all services, alert rules, and service discovery
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: poultry-platform
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      scrape_timeout: 10s
+      external_labels:
+        cluster: 'poultry-platform'
+        env: 'production'
+
+    # Alertmanager configuration
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+                - alertmanager:9093
+          scheme: http
+          timeout: 10s
+          api_version: v2
+
+    # Rule files
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+
+    # Scrape configurations
+    scrape_configs:
+      # Prometheus self-monitoring
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+        metrics_path: /metrics
+        scheme: http
+
+      # Kubernetes API server
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+          - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: default;kubernetes;https
+
+      # Kubernetes nodes
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics
+
+      # Kubernetes node cAdvisor
+      - job_name: 'kubernetes-cadvisor'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+
+      # Kubernetes service endpoints with prometheus.io annotations
+      - job_name: 'kubernetes-service-endpoints'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - poultry-platform
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+            action: replace
+            target_label: __scheme__
+            regex: (https?)
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            action: replace
+            target_label: kubernetes_service
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod
+
+      # Kubernetes pods with prometheus.io annotations
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - poultry-platform
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+            action: replace
+            regex: (https?)
+            target_label: __scheme__
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            action: replace
+            target_label: kubernetes_container
+
+      # Backend API service (Spring Boot Actuator)
+      - job_name: 'backend-api'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - poultry-platform
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: backend-service
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http
+        metrics_path: /actuator/prometheus
+        scheme: http
+
+      # PostgreSQL (via postgres-exporter sidecar)
+      - job_name: 'postgresql'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - poultry-platform
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: keep
+            regex: postgres
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+
+      # Redis
+      - job_name: 'redis'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - poultry-platform
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: keep
+            regex: redis
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: (.+)
+            replacement: ${1}
+
+      # Alertmanager
+      - job_name: 'alertmanager'
+        static_configs:
+          - targets: ['alertmanager:9093']
+
+      # Grafana
+      - job_name: 'grafana'
+        static_configs:
+          - targets: ['grafana:3000']
+        metrics_path: /metrics
+
+      # Node Exporter (if deployed)
+      - job_name: 'node-exporter'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - poultry-platform
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_endpoints_name]
+            action: keep
+            regex: node-exporter
+
+      # Kube State Metrics (if deployed)
+      - job_name: 'kube-state-metrics'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - poultry-platform
+                - kube-system
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_endpoints_name]
+            action: keep
+            regex: kube-state-metrics
+
+  # Recording rules for pre-computed metrics
+  recording_rules.yml: |
+    groups:
+      - name: backend_api_rules
+        interval: 30s
+        rules:
+          # Request rate by endpoint
+          - record: job:http_server_requests_seconds_count:rate5m
+            expr: sum(rate(http_server_requests_seconds_count{job="backend-api"}[5m])) by (uri, method, status)
+
+          # Request latency percentiles
+          - record: job:http_server_requests_seconds:p50
+            expr: histogram_quantile(0.5, sum(rate(http_server_requests_seconds_bucket{job="backend-api"}[5m])) by (uri, le))
+
+          - record: job:http_server_requests_seconds:p95
+            expr: histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job="backend-api"}[5m])) by (uri, le))
+
+          - record: job:http_server_requests_seconds:p99
+            expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="backend-api"}[5m])) by (uri, le))
+
+          # Error rate
+          - record: job:http_server_requests_errors:rate5m
+            expr: sum(rate(http_server_requests_seconds_count{job="backend-api",status=~"5.."}[5m])) by (uri)
+
+          # JVM memory usage
+          - record: job:jvm_memory_used_bytes:ratio
+            expr: jvm_memory_used_bytes{job="backend-api"} / jvm_memory_max_bytes{job="backend-api"}
+
+      - name: postgresql_rules
+        interval: 30s
+        rules:
+          # Connection usage ratio
+          - record: job:pg_stat_activity_count:ratio
+            expr: pg_stat_activity_count / pg_settings_max_connections
+
+          # Replication lag
+          - record: job:pg_replication_lag_seconds
+            expr: pg_replication{job="postgresql"}
+
+          # Database size growth rate
+          - record: job:pg_database_size_bytes:rate1h
+            expr: rate(pg_database_size_bytes[1h])
+
+      - name: kubernetes_rules
+        interval: 30s
+        rules:
+          # Pod CPU usage
+          - record: namespace:container_cpu_usage_seconds_total:rate5m
+            expr: sum(rate(container_cpu_usage_seconds_total{namespace="poultry-platform"}[5m])) by (pod)
+
+          # Pod memory usage
+          - record: namespace:container_memory_working_set_bytes:sum
+            expr: sum(container_memory_working_set_bytes{namespace="poultry-platform"}) by (pod)
+
+  # Alert rules
+  alerts.yml: |
+    groups:
+      - name: backend_api_alerts
+        rules:
+          # High error rate
+          - alert: HighErrorRate
+            expr: |
+              (
+                sum(rate(http_server_requests_seconds_count{job="backend-api",status=~"5.."}[5m]))
+                /
+                sum(rate(http_server_requests_seconds_count{job="backend-api"}[5m]))
+              ) > 0.05
+            for: 5m
+            labels:
+              severity: critical
+              service: backend-api
+            annotations:
+              summary: "High error rate detected"
+              description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+          # High latency
+          - alert: HighLatency
+            expr: |
+              histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job="backend-api"}[5m])) by (le))
+              > 2
+            for: 5m
+            labels:
+              severity: warning
+              service: backend-api
+            annotations:
+              summary: "High API latency detected"
+              description: "95th percentile latency is {{ $value | humanizeDuration }}"
+
+          # Service down
+          - alert: BackendServiceDown
+            expr: up{job="backend-api"} == 0
+            for: 1m
+            labels:
+              severity: critical
+              service: backend-api
+            annotations:
+              summary: "Backend API service is down"
+              description: "Backend service {{ $labels.instance }} is not responding"
+
+          # High JVM memory usage
+          - alert: HighJVMMemoryUsage
+            expr: |
+              (jvm_memory_used_bytes{job="backend-api",area="heap"}
+              / jvm_memory_max_bytes{job="backend-api",area="heap"}) > 0.9
+            for: 5m
+            labels:
+              severity: warning
+              service: backend-api
+            annotations:
+              summary: "High JVM heap memory usage"
+              description: "JVM heap usage is {{ $value | humanizePercentage }}"
+
+          # Thread pool exhaustion
+          - alert: ThreadPoolExhaustion
+            expr: |
+              tomcat_threads_current_threads{job="backend-api"}
+              / tomcat_threads_config_max_threads{job="backend-api"} > 0.9
+            for: 5m
+            labels:
+              severity: warning
+              service: backend-api
+            annotations:
+              summary: "Tomcat thread pool nearly exhausted"
+              description: "Thread pool usage is {{ $value | humanizePercentage }}"
+
+      - name: postgresql_alerts
+        rules:
+          # PostgreSQL down
+          - alert: PostgreSQLDown
+            expr: pg_up == 0
+            for: 1m
+            labels:
+              severity: critical
+              service: postgresql
+            annotations:
+              summary: "PostgreSQL instance is down"
+              description: "PostgreSQL {{ $labels.instance }} is not responding"
+
+          # High connection usage
+          - alert: PostgreSQLHighConnections
+            expr: |
+              pg_stat_activity_count / pg_settings_max_connections > 0.8
+            for: 5m
+            labels:
+              severity: warning
+              service: postgresql
+            annotations:
+              summary: "High PostgreSQL connection usage"
+              description: "Connection usage is {{ $value | humanizePercentage }}"
+
+          # Replication lag
+          - alert: PostgreSQLReplicationLag
+            expr: pg_replication{job="postgresql"} > 30
+            for: 5m
+            labels:
+              severity: warning
+              service: postgresql
+            annotations:
+              summary: "PostgreSQL replication lag detected"
+              description: "Replication lag is {{ $value | humanizeDuration }}"
+
+          # No leader (Patroni)
+          - alert: PostgreSQLNoLeader
+            expr: |
+              count(pg_up{role="master"} == 1) == 0
+            for: 1m
+            labels:
+              severity: critical
+              service: postgresql
+            annotations:
+              summary: "No PostgreSQL leader available"
+              description: "Patroni cluster has no leader"
+
+          # Deadlocks
+          - alert: PostgreSQLDeadlocks
+            expr: rate(pg_stat_database_deadlocks[5m]) > 0
+            for: 5m
+            labels:
+              severity: warning
+              service: postgresql
+            annotations:
+              summary: "PostgreSQL deadlocks detected"
+              description: "Deadlock rate: {{ $value | humanize }}/s"
+
+          # Slow queries
+          - alert: PostgreSQLSlowQueries
+            expr: |
+              pg_stat_activity_max_tx_duration{state="active"} > 300
+            for: 5m
+            labels:
+              severity: warning
+              service: postgresql
+            annotations:
+              summary: "Long-running queries detected"
+              description: "Query running for {{ $value | humanizeDuration }}"
+
+      - name: redis_alerts
+        rules:
+          # Redis down
+          - alert: RedisDown
+            expr: redis_up == 0
+            for: 1m
+            labels:
+              severity: critical
+              service: redis
+            annotations:
+              summary: "Redis is down"
+              description: "Redis {{ $labels.instance }} is not responding"
+
+          # High memory usage
+          - alert: RedisHighMemoryUsage
+            expr: |
+              redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+            for: 5m
+            labels:
+              severity: warning
+              service: redis
+            annotations:
+              summary: "Redis high memory usage"
+              description: "Memory usage is {{ $value | humanizePercentage }}"
+
+          # Too many connections
+          - alert: RedisTooManyConnections
+            expr: redis_connected_clients > 1000
+            for: 5m
+            labels:
+              severity: warning
+              service: redis
+            annotations:
+              summary: "Too many Redis connections"
+              description: "Current connections: {{ $value }}"
+
+      - name: kubernetes_alerts
+        rules:
+          # Pod not ready
+          - alert: KubernetesPodNotReady
+            expr: |
+              kube_pod_status_ready{namespace="poultry-platform",condition="true"} == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod is not ready"
+              description: "Pod {{ $labels.pod }} is not ready"
+
+          # Pod restarts
+          - alert: KubernetesPodRestarts
+            expr: |
+              increase(kube_pod_container_status_restarts_total{namespace="poultry-platform"}[1h]) > 3
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod experiencing restarts"
+              description: "Pod {{ $labels.pod }} restarted {{ $value }} times in the last hour"
+
+          # High CPU usage
+          - alert: KubernetesHighCPUUsage
+            expr: |
+              (sum(rate(container_cpu_usage_seconds_total{namespace="poultry-platform"}[5m])) by (pod)
+              / sum(kube_pod_container_resource_limits{namespace="poultry-platform",resource="cpu"}) by (pod))
+              > 0.9
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU usage"
+              description: "Pod {{ $labels.pod }} CPU usage is {{ $value | humanizePercentage }}"
+
+          # High memory usage
+          - alert: KubernetesHighMemoryUsage
+            expr: |
+              (sum(container_memory_working_set_bytes{namespace="poultry-platform"}) by (pod)
+              / sum(kube_pod_container_resource_limits{namespace="poultry-platform",resource="memory"}) by (pod))
+              > 0.9
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High memory usage"
+              description: "Pod {{ $labels.pod }} memory usage is {{ $value | humanizePercentage }}"
+
+          # PVC almost full
+          - alert: KubernetesPVCAlmostFull
+            expr: |
+              (kubelet_volume_stats_used_bytes{namespace="poultry-platform"}
+              / kubelet_volume_stats_capacity_bytes{namespace="poultry-platform"}) > 0.85
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "PVC almost full"
+              description: "PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
+
+      - name: backup_alerts
+        rules:
+          # Backup failed
+          - alert: PostgreSQLBackupFailed
+            expr: postgres_backup_success == 0
+            for: 5m
+            labels:
+              severity: critical
+              service: backup
+            annotations:
+              summary: "PostgreSQL backup failed"
+              description: "Last backup attempt failed"
+
+          # Backup too old
+          - alert: PostgreSQLBackupTooOld
+            expr: |
+              (time() - postgres_backup_timestamp) > 86400 * 2
+            for: 5m
+            labels:
+              severity: warning
+              service: backup
+            annotations:
+              summary: "PostgreSQL backup is too old"
+              description: "Last successful backup was {{ $value | humanizeDuration }} ago"

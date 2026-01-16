@@ -1,0 +1,371 @@
+---
+# PostgreSQL Backup CronJob
+# Performs daily backups to S3/MinIO with 30-day retention
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-backup-scripts
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres-backup
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: poultry-platform
+data:
+  backup.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    # Configuration
+    BACKUP_DIR="/backup"
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    BACKUP_NAME="poultry_backup_${TIMESTAMP}"
+    RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+
+    # Logging functions
+    log_info() { echo "[INFO] $(date '+%Y-%m-%d %H:%M:%S') - $1"; }
+    log_error() { echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $1" >&2; }
+    log_success() { echo "[SUCCESS] $(date '+%Y-%m-%d %H:%M:%S') - $1"; }
+
+    # Cleanup function
+    cleanup() {
+      log_info "Cleaning up temporary files..."
+      rm -f "${BACKUP_DIR}/${BACKUP_NAME}.sql" "${BACKUP_DIR}/${BACKUP_NAME}.sql.gz" 2>/dev/null || true
+    }
+    trap cleanup EXIT
+
+    log_info "Starting PostgreSQL backup: ${BACKUP_NAME}"
+
+    # Validate environment variables
+    for var in PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD S3_BUCKET S3_ENDPOINT; do
+      if [ -z "${!var:-}" ]; then
+        log_error "Required environment variable $var is not set"
+        exit 1
+      fi
+    done
+
+    # Create backup directory
+    mkdir -p "${BACKUP_DIR}"
+
+    # Perform database dump
+    log_info "Creating database dump..."
+    if ! pg_dump \
+      --host="${PGHOST}" \
+      --port="${PGPORT}" \
+      --username="${PGUSER}" \
+      --dbname="${PGDATABASE}" \
+      --format=plain \
+      --no-owner \
+      --no-privileges \
+      --clean \
+      --if-exists \
+      --verbose \
+      > "${BACKUP_DIR}/${BACKUP_NAME}.sql" 2>&1; then
+      log_error "pg_dump failed"
+      exit 1
+    fi
+
+    # Verify backup file exists and has content
+    if [ ! -s "${BACKUP_DIR}/${BACKUP_NAME}.sql" ]; then
+      log_error "Backup file is empty or does not exist"
+      exit 1
+    fi
+
+    BACKUP_SIZE=$(du -h "${BACKUP_DIR}/${BACKUP_NAME}.sql" | cut -f1)
+    log_info "Backup size (uncompressed): ${BACKUP_SIZE}"
+
+    # Compress backup
+    log_info "Compressing backup..."
+    if ! gzip -9 "${BACKUP_DIR}/${BACKUP_NAME}.sql"; then
+      log_error "Compression failed"
+      exit 1
+    fi
+
+    COMPRESSED_SIZE=$(du -h "${BACKUP_DIR}/${BACKUP_NAME}.sql.gz" | cut -f1)
+    log_info "Backup size (compressed): ${COMPRESSED_SIZE}"
+
+    # Calculate checksum
+    CHECKSUM=$(sha256sum "${BACKUP_DIR}/${BACKUP_NAME}.sql.gz" | cut -d' ' -f1)
+    log_info "Backup checksum (SHA256): ${CHECKSUM}"
+
+    # Create metadata file
+    cat > "${BACKUP_DIR}/${BACKUP_NAME}.meta.json" <<EOF
+    {
+      "backup_name": "${BACKUP_NAME}",
+      "timestamp": "${TIMESTAMP}",
+      "database": "${PGDATABASE}",
+      "host": "${PGHOST}",
+      "uncompressed_size": "${BACKUP_SIZE}",
+      "compressed_size": "${COMPRESSED_SIZE}",
+      "checksum_sha256": "${CHECKSUM}",
+      "retention_days": ${RETENTION_DAYS}
+    }
+    EOF
+
+    # Upload to S3/MinIO
+    log_info "Uploading backup to S3..."
+    S3_PATH="s3://${S3_BUCKET}/postgres-backups/${BACKUP_NAME}.sql.gz"
+    S3_META_PATH="s3://${S3_BUCKET}/postgres-backups/${BACKUP_NAME}.meta.json"
+
+    if ! mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4; then
+      log_error "Failed to configure MinIO client"
+      exit 1
+    fi
+
+    if ! mc cp "${BACKUP_DIR}/${BACKUP_NAME}.sql.gz" "backup/${S3_BUCKET}/postgres-backups/"; then
+      log_error "Failed to upload backup to S3"
+      exit 1
+    fi
+
+    if ! mc cp "${BACKUP_DIR}/${BACKUP_NAME}.meta.json" "backup/${S3_BUCKET}/postgres-backups/"; then
+      log_error "Failed to upload metadata to S3"
+      exit 1
+    fi
+
+    log_success "Backup uploaded successfully: ${S3_PATH}"
+
+    # Verify uploaded backup
+    log_info "Verifying uploaded backup..."
+    REMOTE_SIZE=$(mc stat "backup/${S3_BUCKET}/postgres-backups/${BACKUP_NAME}.sql.gz" 2>&1 | grep "Size" | awk '{print $3}')
+    log_info "Remote backup size: ${REMOTE_SIZE} bytes"
+
+    # Cleanup old backups (retention policy)
+    log_info "Applying ${RETENTION_DAYS}-day retention policy..."
+    CUTOFF_DATE=$(date -d "-${RETENTION_DAYS} days" +%Y%m%d 2>/dev/null || date -v-${RETENTION_DAYS}d +%Y%m%d)
+
+    mc ls "backup/${S3_BUCKET}/postgres-backups/" 2>/dev/null | while read -r line; do
+      FILENAME=$(echo "$line" | awk '{print $NF}')
+      if [[ "$FILENAME" =~ ^poultry_backup_([0-9]{8})_ ]]; then
+        FILE_DATE="${BASH_REMATCH[1]}"
+        if [ "$FILE_DATE" -lt "$CUTOFF_DATE" ]; then
+          log_info "Removing old backup: ${FILENAME}"
+          mc rm "backup/${S3_BUCKET}/postgres-backups/${FILENAME}" || true
+        fi
+      fi
+    done
+
+    log_success "Backup completed successfully!"
+    log_info "Backup details:"
+    log_info "  - Name: ${BACKUP_NAME}"
+    log_info "  - Location: ${S3_PATH}"
+    log_info "  - Checksum: ${CHECKSUM}"
+
+  verify-backup.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    # Backup verification script
+    log_info() { echo "[INFO] $(date '+%Y-%m-%d %H:%M:%S') - $1"; }
+    log_error() { echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $1" >&2; }
+    log_success() { echo "[SUCCESS] $(date '+%Y-%m-%d %H:%M:%S') - $1"; }
+
+    BACKUP_NAME="${1:-}"
+    if [ -z "$BACKUP_NAME" ]; then
+      log_error "Usage: verify-backup.sh <backup_name>"
+      exit 1
+    fi
+
+    log_info "Verifying backup: ${BACKUP_NAME}"
+
+    # Configure MinIO client
+    mc alias set backup "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4
+
+    # Download backup
+    TEMP_DIR=$(mktemp -d)
+    trap "rm -rf ${TEMP_DIR}" EXIT
+
+    log_info "Downloading backup for verification..."
+    mc cp "backup/${S3_BUCKET}/postgres-backups/${BACKUP_NAME}.sql.gz" "${TEMP_DIR}/"
+    mc cp "backup/${S3_BUCKET}/postgres-backups/${BACKUP_NAME}.meta.json" "${TEMP_DIR}/"
+
+    # Verify checksum
+    log_info "Verifying checksum..."
+    EXPECTED_CHECKSUM=$(jq -r '.checksum_sha256' "${TEMP_DIR}/${BACKUP_NAME}.meta.json")
+    ACTUAL_CHECKSUM=$(sha256sum "${TEMP_DIR}/${BACKUP_NAME}.sql.gz" | cut -d' ' -f1)
+
+    if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+      log_error "Checksum mismatch! Expected: ${EXPECTED_CHECKSUM}, Got: ${ACTUAL_CHECKSUM}"
+      exit 1
+    fi
+    log_success "Checksum verified successfully"
+
+    # Test decompression
+    log_info "Testing decompression..."
+    if ! gunzip -t "${TEMP_DIR}/${BACKUP_NAME}.sql.gz"; then
+      log_error "Backup file is corrupted"
+      exit 1
+    fi
+    log_success "Backup file integrity verified"
+
+    # Decompress and validate SQL syntax
+    log_info "Validating SQL syntax..."
+    gunzip -c "${TEMP_DIR}/${BACKUP_NAME}.sql.gz" > "${TEMP_DIR}/${BACKUP_NAME}.sql"
+
+    # Check for required PostgreSQL commands
+    if ! grep -q "CREATE TABLE" "${TEMP_DIR}/${BACKUP_NAME}.sql" && \
+       ! grep -q "COPY" "${TEMP_DIR}/${BACKUP_NAME}.sql"; then
+      log_error "Backup appears to be incomplete (no CREATE TABLE or COPY statements)"
+      exit 1
+    fi
+
+    log_success "Backup verification completed successfully!"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres-backup
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: poultry-platform
+  annotations:
+    description: "Daily PostgreSQL backup to S3/MinIO"
+spec:
+  # Run at 2:00 AM UTC daily
+  schedule: "0 2 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres-backup
+        app.kubernetes.io/component: backup
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: postgres-backup
+            app.kubernetes.io/component: backup
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: postgres-backup-sa
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: backup
+              image: postgres:16-alpine
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  # Install MinIO client and jq
+                  apk add --no-cache curl jq bash coreutils
+                  curl -sL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc
+                  chmod +x /usr/local/bin/mc
+                  # Run backup script
+                  /scripts/backup.sh
+              env:
+                - name: PGHOST
+                  value: "postgres-service"
+                - name: PGPORT
+                  value: "5432"
+                - name: PGDATABASE
+                  valueFrom:
+                    configMapKeyRef:
+                      name: poultry-config
+                      key: DB_NAME
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: poultry-secrets
+                      key: DB_USERNAME
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: poultry-secrets
+                      key: DB_PASSWORD
+                - name: S3_BUCKET
+                  value: "poultry-backups"
+                - name: S3_ENDPOINT
+                  valueFrom:
+                    configMapKeyRef:
+                      name: poultry-config
+                      key: MINIO_ENDPOINT
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: poultry-secrets
+                      key: MINIO_ACCESS_KEY
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: poultry-secrets
+                      key: MINIO_SECRET_KEY
+                - name: BACKUP_RETENTION_DAYS
+                  value: "30"
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"
+              volumeMounts:
+                - name: backup-scripts
+                  mountPath: /scripts
+                - name: backup-data
+                  mountPath: /backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: backup-scripts
+              configMap:
+                name: postgres-backup-scripts
+                defaultMode: 0755
+            - name: backup-data
+              emptyDir:
+                sizeLimit: 10Gi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres-backup-sa
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres-backup
+    app.kubernetes.io/component: backup
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: postgres-backup-role
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres-backup
+    app.kubernetes.io/component: backup
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: postgres-backup-rolebinding
+  namespace: poultry-platform
+  labels:
+    app.kubernetes.io/name: postgres-backup
+    app.kubernetes.io/component: backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: postgres-backup-role
+subjects:
+  - kind: ServiceAccount
+    name: postgres-backup-sa
+    namespace: poultry-platform

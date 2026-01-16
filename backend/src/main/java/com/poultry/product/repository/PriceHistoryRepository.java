@@ -1,6 +1,7 @@
 package com.poultry.product.repository;
 
 import com.poultry.product.entity.PriceHistory;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -17,6 +18,19 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, UUID
             "AND ph.effectiveFrom <= :now AND (ph.effectiveTo IS NULL OR ph.effectiveTo > :now) " +
             "ORDER BY ph.effectiveFrom DESC LIMIT 1")
     Optional<PriceHistory> findCurrentPrice(UUID productId, Instant now);
+
+    @Query("SELECT ph FROM PriceHistory ph WHERE ph.productId = :productId " +
+            "AND ph.effectiveFrom > :effectiveFrom ORDER BY ph.effectiveFrom ASC LIMIT 1")
+    Optional<PriceHistory> findNextPrice(UUID productId, Instant effectiveFrom);
+
+    boolean existsByProductIdAndEffectiveFrom(UUID productId, Instant effectiveFrom);
+
+    @Modifying
+    @Query("UPDATE PriceHistory ph SET ph.effectiveTo = :effectiveTo " +
+            "WHERE ph.productId = :productId " +
+            "AND ph.effectiveFrom < :effectiveTo " +
+            "AND (ph.effectiveTo IS NULL OR ph.effectiveTo > :effectiveTo)")
+    int closeOverlappingPriceAt(UUID productId, Instant effectiveTo);
 
     @Query("SELECT ph FROM PriceHistory ph WHERE ph.productId = :productId " +
             "ORDER BY ph.effectiveFrom DESC")

@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../k8s
+  - ../../k8s/postgres-ha-statefulset.yaml
+  - ../../k8s/postgres-service-readonly.yaml
+
+patches:
+  - path: backup-cronjob-patch.yaml
+    target:
+      kind: CronJob
+      name: postgres-backup
+  - path: configmap-patch.yaml
+    target:
+      kind: ConfigMap
+      name: poultry-config
+  - target:
+      kind: PersistentVolumeClaim
+      name: postgres-pvc
+    patch: |-
+      $patch: delete
+  - target:
+      kind: StatefulSet
+      name: postgres
+    patch: |-
+      $patch: delete
+  - target:
+      kind: Service
+      name: postgres-service
+    patch: |-
+      $patch: delete
