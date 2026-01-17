@@ -54,7 +54,7 @@ public class OtpRequest {
     @Column(name = "verified_at")
     private Instant verifiedAt;
 
-    @Column(name = "ip_address")
+    @Column(name = "ip_address", columnDefinition = "inet")
     private String ipAddress;
 
     @JdbcTypeCode(SqlTypes.JSON)

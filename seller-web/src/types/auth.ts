@@ -20,6 +20,13 @@ export interface TokenResponse {
   businessName: string;
   mustChangePassword: boolean;
   newUser: boolean;
+  requires2FA?: boolean;
+  twoFactorToken?: string;
+}
+
+export interface TwoFactorVerifyRequest {
+  twoFactorToken: string;
+  code: string;
 }
 
 export interface RefreshTokenRequest {

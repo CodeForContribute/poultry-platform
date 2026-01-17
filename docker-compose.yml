@@ -156,6 +156,30 @@ services:
     networks:
       - poultry-network
 
+  # Seller Web Frontend
+  seller-web:
+    build:
+      context: ./seller-web
+      dockerfile: Dockerfile
+    container_name: poultry-seller-web
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_APP_NAME: Poultry Platform - Seller Dashboard
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - poultry-network
+
 volumes:
   postgres_data:
   redis_data:

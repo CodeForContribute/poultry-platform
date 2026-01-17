@@ -12,7 +12,7 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/");
+      router.replace("/analytics");
     }
   }, [isAuthenticated, router]);
 

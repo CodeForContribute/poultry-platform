@@ -22,13 +22,14 @@ CREATE INDEX idx_payments_recon ON payments(gateway, status, created_at)
 -- Ledger balance calculation per entity
 CREATE INDEX idx_ledger_balance_calc ON ledger_entries(account_type, entity_id, direction, amount);
 
--- Delivery SLA monitoring
-CREATE INDEX idx_delivery_sla_monitor ON delivery_tracking(seller_id, promised_delivery_time, status)
+-- Delivery SLA monitoring (using order_id instead of seller_id since it's referenced via orders table)
+CREATE INDEX idx_delivery_sla_monitor ON delivery_tracking(order_id, promised_delivery_time, status)
     WHERE status NOT IN ('DELIVERED', 'DELIVERY_FAILED');
 
 -- OTP verification (recent OTPs for a phone)
-CREATE INDEX idx_otp_recent ON otp_requests(phone_hash, purpose, created_at DESC)
-    WHERE verified = FALSE AND expires_at > NOW();
+-- Note: Cannot use NOW() in index predicate as it's not IMMUTABLE
+CREATE INDEX idx_otp_recent ON otp_requests(phone_hash, purpose, expires_at, created_at DESC)
+    WHERE verified = FALSE;
 
 -- Notification queue processing
 CREATE INDEX idx_notification_queue ON notifications(channel, priority DESC, scheduled_for, created_at)
@@ -60,18 +61,19 @@ CREATE TRIGGER products_search_vector_trigger
 CREATE INDEX idx_products_search ON products USING gin(search_vector);
 
 -- Analytics indexes (for admin dashboard)
-CREATE INDEX idx_orders_daily_stats ON orders(DATE(created_at), status);
-CREATE INDEX idx_payments_daily_stats ON payments(DATE(created_at), status, amount);
+-- Note: Using timestamp column directly; query planner handles date range filters efficiently
+CREATE INDEX idx_orders_daily_stats ON orders(created_at, status);
+CREATE INDEX idx_payments_daily_stats ON payments(created_at, status, amount);
 
 -- GIN index for JSONB columns that are frequently queried
 CREATE INDEX idx_orders_delivery_address ON orders USING gin(delivery_address);
 CREATE INDEX idx_products_attributes ON products USING gin(attributes);
 CREATE INDEX idx_buyers_addresses ON buyers USING gin(addresses);
 
--- Partial index for password rotation reminder (sellers due for password change)
+-- Index for password rotation reminder queries (sellers due for password change)
+-- Note: Cannot use NOW() in partial index as it's not IMMUTABLE; filter at query time instead
 CREATE INDEX idx_seller_users_pwd_rotation ON seller_users(password_changed_at)
-    WHERE status = 'ACTIVE'
-    AND password_changed_at < NOW() - INTERVAL '80 days';
+    WHERE status = 'ACTIVE';
 
 -- Index for finding duplicate payments
 CREATE INDEX idx_payments_duplicate_check ON payments(order_id, amount, status)

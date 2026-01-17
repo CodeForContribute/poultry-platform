@@ -56,8 +56,9 @@ CREATE TABLE otp_requests (
 );
 
 -- Audit logs table (comprehensive logging)
+-- Note: PRIMARY KEY must include partition column (created_at) for partitioned tables
 CREATE TABLE audit_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
 
     -- Actor
     user_type VARCHAR(20), -- 'SELLER_USER', 'BUYER', 'ADMIN', 'SYSTEM'
@@ -85,7 +86,9 @@ CREATE TABLE audit_logs (
     -- Request tracing
     correlation_id VARCHAR(64),
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
 -- Create partitions for audit_logs (monthly)

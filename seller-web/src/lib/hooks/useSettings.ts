@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type {
@@ -24,9 +24,11 @@ export function useBusinessProfile() {
   } = useQuery<BusinessProfile, Error>({
     queryKey: ["seller-profile"],
     queryFn: async () => {
-      // Use mock data for now
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return settingsApi.getMockBusinessProfile();
+      const response = await settingsApi.getBusinessProfile();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.message || "Failed to load business profile");
     },
   });
 
@@ -61,8 +63,11 @@ export function useBankAccounts() {
   } = useQuery<BankAccountDetails[], Error>({
     queryKey: ["seller-bank-accounts"],
     queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return settingsApi.getMockBankAccounts();
+      const response = await settingsApi.getBankAccounts();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.message || "Failed to load bank accounts");
     },
   });
 
@@ -122,8 +127,11 @@ export function useNotificationPreferences() {
   } = useQuery<NotificationPreferences, Error>({
     queryKey: ["seller-notification-preferences"],
     queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return settingsApi.getMockNotificationPreferences();
+      const response = await settingsApi.getNotificationPreferences();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.message || "Failed to load notification preferences");
     },
   });
 
@@ -158,8 +166,11 @@ export function useSecuritySettings() {
   } = useQuery<SecuritySettings, Error>({
     queryKey: ["seller-security-settings"],
     queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return settingsApi.getMockSecuritySettings();
+      const response = await settingsApi.getSecuritySettings();
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.message || "Failed to load security settings");
     },
   });
 
@@ -192,5 +203,78 @@ export function useSecuritySettings() {
     isChangingPassword: changePasswordMutation.isPending,
     logoutAllSessions: logoutAllMutation.mutate,
     isLoggingOutAll: logoutAllMutation.isPending,
+  };
+}
+
+export function useTwoFactorSetup() {
+  const queryClient = useQueryClient();
+  const [setupData, setSetupData] = useState<{ qrCode: string; secret: string } | null>(null);
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+
+  const setupMutation = useMutation({
+    mutationFn: () => settingsApi.setup2FA(),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        setSetupData(response.data);
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to setup 2FA");
+    },
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: (code: string) => settingsApi.verify2FA(code),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["seller-security-settings"] });
+      toast.success("Two-factor authentication enabled successfully");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Invalid verification code");
+    },
+  });
+
+  const disableMutation = useMutation({
+    mutationFn: (password: string) => settingsApi.disableTwoFactor(password),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["seller-security-settings"] });
+      setSetupData(null);
+      setBackupCodes(null);
+      toast.success("Two-factor authentication disabled");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to disable 2FA");
+    },
+  });
+
+  const backupCodesMutation = useMutation({
+    mutationFn: () => settingsApi.getBackupCodes(),
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        setBackupCodes(response.data.codes);
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to get backup codes");
+    },
+  });
+
+  const reset = useCallback(() => {
+    setSetupData(null);
+    setBackupCodes(null);
+  }, []);
+
+  return {
+    setupData,
+    backupCodes,
+    isSettingUp: setupMutation.isPending,
+    isVerifying: verifyMutation.isPending,
+    isDisabling: disableMutation.isPending,
+    isFetchingBackupCodes: backupCodesMutation.isPending,
+    setup2FA: () => setupMutation.mutateAsync(),
+    verify2FA: (code: string) => verifyMutation.mutateAsync(code),
+    disable2FA: (password: string) => disableMutation.mutateAsync(password),
+    getBackupCodes: () => backupCodesMutation.mutateAsync(),
+    reset,
   };
 }

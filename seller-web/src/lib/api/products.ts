@@ -83,3 +83,55 @@ export async function getCategories(): Promise<ApiResponse<Category[]>> {
   const response = await apiClient.get<ApiResponse<Category[]>>("/categories");
   return response.data;
 }
+
+// Product Image Types
+export interface ProductImage {
+  id: string;
+  url: string;
+  productId: string;
+  displayOrder: number;
+  createdAt: string;
+}
+
+export interface UploadProductImageResponse {
+  id: string;
+  url: string;
+}
+
+export async function uploadProductImage(
+  productId: string,
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<ApiResponse<UploadProductImageResponse>> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await apiClient.post<ApiResponse<UploadProductImageResponse>>(
+    `/seller/products/${productId}/images`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const progress = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(progress);
+        }
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function deleteProductImage(
+  productId: string,
+  imageId: string
+): Promise<ApiResponse<null>> {
+  const response = await apiClient.delete<ApiResponse<null>>(
+    `/seller/products/${productId}/images/${imageId}`
+  );
+  return response.data;
+}

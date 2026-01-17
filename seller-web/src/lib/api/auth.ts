@@ -5,6 +5,7 @@ import type {
   TokenResponse,
   RefreshTokenRequest,
   ChangePasswordRequest,
+  TwoFactorVerifyRequest,
 } from "@/types";
 
 export async function login(
@@ -39,4 +40,33 @@ export async function changePassword(
 
 export async function logout(): Promise<void> {
   await apiClient.post("/auth/seller/logout");
+}
+
+export async function forgotPassword(email: string): Promise<ApiResponse<null>> {
+  const response = await apiClient.post<ApiResponse<null>>(
+    "/auth/seller/forgot-password",
+    { email }
+  );
+  return response.data;
+}
+
+export async function resetPassword(
+  token: string,
+  newPassword: string
+): Promise<ApiResponse<null>> {
+  const response = await apiClient.post<ApiResponse<null>>(
+    "/auth/seller/reset-password",
+    { token, newPassword }
+  );
+  return response.data;
+}
+
+export async function verify2FA(
+  request: TwoFactorVerifyRequest
+): Promise<ApiResponse<TokenResponse>> {
+  const response = await apiClient.post<ApiResponse<TokenResponse>>(
+    "/auth/seller/verify-2fa",
+    request
+  );
+  return response.data;
 }

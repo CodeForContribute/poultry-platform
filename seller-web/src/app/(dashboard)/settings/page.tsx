@@ -37,6 +37,7 @@ import {
   useNotificationPreferences,
   useSecuritySettings,
 } from "@/lib/hooks/useSettings";
+import { TwoFactorSetup } from "@/components/settings/two-factor-setup";
 import type { NotificationPreferences } from "@/types";
 
 // Validation schemas
@@ -967,31 +968,15 @@ function SecurityTab() {
       </Card>
 
       {/* Two-Factor Authentication */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Two-Factor Authentication</CardTitle>
-          <CardDescription>
-            Add an extra layer of security to your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">
-                {settings?.twoFactorEnabled ? "Enabled" : "Disabled"}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {settings?.twoFactorEnabled
-                  ? "Your account is protected with 2FA"
-                  : "Enable 2FA for additional security"}
-              </p>
-            </div>
-            <Button variant={settings?.twoFactorEnabled ? "destructive" : "default"}>
-              {settings?.twoFactorEnabled ? "Disable 2FA" : "Enable 2FA"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <TwoFactorSetup
+        isEnabled={settings?.twoFactorEnabled || false}
+        onSetupComplete={() => {
+          // Settings will be refetched automatically by the hook
+        }}
+        onDisableComplete={() => {
+          // Settings will be refetched automatically by the hook
+        }}
+      />
 
       {/* Active Sessions */}
       <Card>

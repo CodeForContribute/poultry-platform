@@ -48,7 +48,7 @@ export function useDisputes(): DisputesViewModel {
   const [priorityFilter, setPriorityFilter] = useState<DisputePriority | "ALL">("ALL");
   const [selectedDisputeId, setSelectedDisputeId] = useState<string | null>(null);
 
-  // Fetch disputes list
+  // Fetch disputes list from real API
   const {
     data: disputes,
     isLoading,
@@ -57,26 +57,20 @@ export function useDisputes(): DisputesViewModel {
   } = useQuery<Dispute[], Error>({
     queryKey: ["seller-disputes", statusFilter, typeFilter, priorityFilter],
     queryFn: async () => {
-      // Use mock data for now
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      let data = disputesApi.getMockDisputes();
+      const filters: DisputeFilters = {};
+      if (statusFilter !== "ALL") filters.status = statusFilter;
+      if (typeFilter !== "ALL") filters.type = typeFilter;
+      if (priorityFilter !== "ALL") filters.priority = priorityFilter;
 
-      // Apply filters
-      if (statusFilter !== "ALL") {
-        data = data.filter((d) => d.status === statusFilter);
+      const response = await disputesApi.getDisputes(filters);
+      if (response.success && response.data) {
+        return response.data.items;
       }
-      if (typeFilter !== "ALL") {
-        data = data.filter((d) => d.type === typeFilter);
-      }
-      if (priorityFilter !== "ALL") {
-        data = data.filter((d) => d.priority === priorityFilter);
-      }
-
-      return data;
+      throw new Error(response.message || "Failed to load disputes");
     },
   });
 
-  // Fetch single dispute
+  // Fetch single dispute from real API
   const {
     data: selectedDispute,
     isLoading: isLoadingDispute,
@@ -84,10 +78,11 @@ export function useDisputes(): DisputesViewModel {
     queryKey: ["seller-dispute", selectedDisputeId],
     queryFn: async () => {
       if (!selectedDisputeId) return null;
-      // Use mock data for now
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      const mockDisputes = disputesApi.getMockDisputes();
-      return mockDisputes.find((d) => d.id === selectedDisputeId) || null;
+      const response = await disputesApi.getDispute(selectedDisputeId);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.message || "Failed to load dispute");
     },
     enabled: !!selectedDisputeId,
   });

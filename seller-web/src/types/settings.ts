@@ -93,8 +93,4 @@ export interface LoginHistoryEntry {
   isCurrent: boolean;
 }
 
-export interface ChangePasswordRequest {
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-}
+// ChangePasswordRequest is defined in auth.ts

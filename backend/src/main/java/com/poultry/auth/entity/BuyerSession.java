@@ -36,7 +36,7 @@ public class BuyerSession {
     @Column(name = "device_info", columnDefinition = "jsonb")
     private Map<String, Object> deviceInfo;
 
-    @Column(name = "ip_address")
+    @Column(name = "ip_address", columnDefinition = "inet")
     private String ipAddress;
 
     @Column(name = "refresh_token_hash", nullable = false)

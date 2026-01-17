@@ -70,20 +70,15 @@ export function useAnalytics(): AnalyticsViewModel {
   } = useQuery<AnalyticsData, Error>({
     queryKey: ["seller-analytics", dateRange, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
-      // Use mock data for now - replace with API call when backend is ready
-      // const response = await analyticsApi.getAnalytics({
-      //   dateRange,
-      //   startDate: startDate?.toISOString(),
-      //   endDate: endDate?.toISOString(),
-      // });
-      // if (response.success && response.data) {
-      //   return response.data;
-      // }
-      // throw new Error(response.message || "Failed to load analytics");
-
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      return analyticsApi.getMockAnalyticsData(dateRange);
+      const response = await analyticsApi.getAnalytics({
+        dateRange,
+        startDate: startDate?.toISOString(),
+        endDate: endDate?.toISOString(),
+      });
+      if (response.success && response.data) {
+        return response.data;
+      }
+      throw new Error(response.message || "Failed to load analytics");
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });

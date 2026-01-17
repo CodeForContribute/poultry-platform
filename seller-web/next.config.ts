@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
   // Production optimizations
   poweredByHeader: false,
 
+  // Output standalone build for Docker deployment
+  output: "standalone",
+
+  // Set turbopack root to current directory for consistent builds
+  turbopack: {
+    root: ".",
+  },
+
   // Image optimization
   images: {
     remotePatterns: [

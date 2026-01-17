@@ -31,8 +31,9 @@ CREATE TABLE notif_templates (
 );
 
 -- Notifications table
+-- Note: PRIMARY KEY must include partition column (created_at) for partitioned tables
 CREATE TABLE notifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
 
     -- Template used
     template_id UUID REFERENCES notif_templates(id),
@@ -83,7 +84,9 @@ CREATE TABLE notifications (
     reference_id UUID,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
 -- Create partitions for notifications (monthly, auto-drop after 90 days)

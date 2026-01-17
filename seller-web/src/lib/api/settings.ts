@@ -115,6 +115,28 @@ export async function disableTwoFactor(
   return response.data;
 }
 
+export async function setup2FA(): Promise<ApiResponse<{ qrCode: string; secret: string }>> {
+  const response = await apiClient.get<ApiResponse<{ qrCode: string; secret: string }>>(
+    "/seller/security/2fa/setup"
+  );
+  return response.data;
+}
+
+export async function verify2FA(code: string): Promise<ApiResponse<void>> {
+  const response = await apiClient.post<ApiResponse<void>>(
+    "/seller/security/2fa/verify",
+    { code }
+  );
+  return response.data;
+}
+
+export async function getBackupCodes(): Promise<ApiResponse<{ codes: string[] }>> {
+  const response = await apiClient.get<ApiResponse<{ codes: string[] }>>(
+    "/seller/security/2fa/backup-codes"
+  );
+  return response.data;
+}
+
 export async function logoutAllSessions(): Promise<ApiResponse<void>> {
   const response = await apiClient.post<ApiResponse<void>>(
     "/seller/security/logout-all"

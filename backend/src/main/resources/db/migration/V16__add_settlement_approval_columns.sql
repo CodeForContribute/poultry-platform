@@ -15,7 +15,5 @@ CREATE INDEX IF NOT EXISTS idx_settlements_pending_approval
     ON settlements(created_at DESC)
     WHERE status = 'PENDING';
 
--- Add index for approved settlements ready for processing
-CREATE INDEX IF NOT EXISTS idx_settlements_approved_processing
-    ON settlements(approved_at DESC)
-    WHERE status = 'APPROVED';
+-- Note: Index for 'APPROVED' status moved to V16_1 because PostgreSQL requires
+-- new enum values to be committed before they can be used in the same transaction

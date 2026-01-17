@@ -346,7 +346,7 @@ export default function AnalyticsPage() {
                             ))}
                           </Pie>
                           <Tooltip
-                            formatter={(value: number) => formatCurrency(value)}
+                            formatter={(value) => formatCurrency(value as number)}
                           />
                         </PieChart>
                       </ResponsiveContainer>
