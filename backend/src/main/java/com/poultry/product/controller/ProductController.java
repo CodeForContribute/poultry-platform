@@ -2,9 +2,13 @@ package com.poultry.product.controller;
 
 import com.poultry.auth.security.UserPrincipal;
 import com.poultry.common.dto.ApiResponse;
+import com.poultry.common.exception.BusinessException;
 import com.poultry.product.dto.*;
 import com.poultry.product.service.PricingService;
 import com.poultry.product.service.ProductService;
+import com.poultry.storage.dto.FileUploadDto;
+import com.poultry.storage.entity.FileUpload;
+import com.poultry.storage.service.FileUploadService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -12,13 +16,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/v1")
@@ -28,6 +35,12 @@ public class ProductController {
 
     private final ProductService productService;
     private final PricingService pricingService;
+    private final FileUploadService fileUploadService;
+
+    private static final String PRODUCT_IMAGES_BUCKET = "product-images";
+    private static final List<String> ALLOWED_IMAGE_TYPES = List.of(
+            "image/jpeg", "image/png", "image/webp", "image/gif");
+    private static final long MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
     // ============ Seller Endpoints ============
 
@@ -109,6 +122,101 @@ public class ProductController {
 
         List<PriceDto> prices = pricingService.getScheduledPrices(principal.getSellerId(), productId);
         return ResponseEntity.ok(ApiResponse.success(prices));
+    }
+
+    // ============ Product Image Endpoints ============
+
+    @PostMapping(value = "/seller/products/{productId}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('SELLER_ADMIN', 'SELLER_STAFF')")
+    @Operation(summary = "Upload product image", description = "Upload an image for a product")
+    public ResponseEntity<ApiResponse<FileUploadDto>> uploadProductImage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID productId,
+            @RequestParam("file") MultipartFile file) {
+
+        // Validate product belongs to seller
+        ProductDto product = productService.getProduct(productId);
+        if (!product.getSellerId().equals(principal.getSellerId())) {
+            throw BusinessException.forbidden("You don't have access to this product");
+        }
+
+        // Validate file
+        if (file.isEmpty()) {
+            throw new BusinessException("File is required", "FILE_REQUIRED", HttpStatus.BAD_REQUEST);
+        }
+        if (file.getSize() > MAX_IMAGE_SIZE) {
+            throw new BusinessException("File size exceeds maximum allowed (5MB)",
+                    "FILE_TOO_LARGE", HttpStatus.BAD_REQUEST);
+        }
+        if (!ALLOWED_IMAGE_TYPES.contains(file.getContentType())) {
+            throw new BusinessException("Invalid file type. Allowed: JPEG, PNG, WebP, GIF",
+                    "INVALID_FILE_TYPE", HttpStatus.BAD_REQUEST);
+        }
+
+        // Upload file
+        FileUpload fileUpload = fileUploadService.uploadFile(
+                file,
+                PRODUCT_IMAGES_BUCKET,
+                "PRODUCT",
+                productId,
+                "SELLER_USER",
+                principal.getId());
+
+        // Get presigned URL for the uploaded file
+        String presignedUrl = fileUploadService.getPresignedUrl(fileUpload.getId());
+        FileUploadDto dto = FileUploadDto.fromEntity(fileUpload, presignedUrl);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(dto, "Image uploaded successfully"));
+    }
+
+    @GetMapping("/seller/products/{productId}/images")
+    @PreAuthorize("hasAnyRole('SELLER_ADMIN', 'SELLER_STAFF')")
+    @Operation(summary = "Get product images", description = "Get all images for a product")
+    public ResponseEntity<ApiResponse<List<FileUploadDto>>> getProductImages(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID productId) {
+
+        // Validate product belongs to seller
+        ProductDto product = productService.getProduct(productId);
+        if (!product.getSellerId().equals(principal.getSellerId())) {
+            throw BusinessException.forbidden("You don't have access to this product");
+        }
+
+        List<FileUpload> files = fileUploadService.getFilesByReference("PRODUCT", productId);
+        List<FileUploadDto> dtos = files.stream()
+                .map(f -> {
+                    String presignedUrl = fileUploadService.getPresignedUrl(f.getId());
+                    return FileUploadDto.fromEntity(f, presignedUrl);
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(ApiResponse.success(dtos));
+    }
+
+    @DeleteMapping("/seller/products/{productId}/images/{imageId}")
+    @PreAuthorize("hasAnyRole('SELLER_ADMIN', 'SELLER_STAFF')")
+    @Operation(summary = "Delete product image", description = "Delete a specific image from a product")
+    public ResponseEntity<ApiResponse<Void>> deleteProductImage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID productId,
+            @PathVariable UUID imageId) {
+
+        // Validate product belongs to seller
+        ProductDto product = productService.getProduct(productId);
+        if (!product.getSellerId().equals(principal.getSellerId())) {
+            throw BusinessException.forbidden("You don't have access to this product");
+        }
+
+        // Validate image belongs to this product
+        FileUpload file = fileUploadService.getFile(imageId);
+        if (!"PRODUCT".equals(file.getReferenceType()) || !productId.equals(file.getReferenceId())) {
+            throw BusinessException.forbidden("Image does not belong to this product");
+        }
+
+        fileUploadService.deleteFile(imageId);
+
+        return ResponseEntity.ok(ApiResponse.success(null, "Image deleted successfully"));
     }
 
     // ============ Public/Buyer Endpoints ============

@@ -21,6 +21,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import org.springframework.core.annotation.Order;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -53,12 +55,19 @@ public class SecurityConfig {
                         // Public endpoints
                         .requestMatchers(
                                 "/v1/auth/**",
+                                "/v1/products/**",
+                                "/v1/categories/**",
                                 "/actuator/health",
                                 "/actuator/info",
                                 "/actuator/prometheus",
                                 "/api-docs/**",
+                                "/api-docs",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/swagger-resources/**",
+                                "/webjars/**"
                         ).permitAll()
 
                         // Seller endpoints

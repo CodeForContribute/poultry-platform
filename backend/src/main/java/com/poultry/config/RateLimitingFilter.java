@@ -68,9 +68,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Skip rate limiting for health checks
+        // Skip rate limiting for health checks and swagger
         String path = request.getRequestURI();
-        if (path.startsWith("/actuator/health") || path.startsWith("/actuator/info")) {
+        if (path.startsWith("/actuator/health") || path.startsWith("/actuator/info") ||
+            path.contains("/swagger") || path.contains("/api-docs") || path.contains("/webjars")) {
             filterChain.doFilter(request, response);
             return;
         }

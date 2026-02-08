@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8082
   servlet:
     context-path: /api
 
@@ -213,10 +213,19 @@ resilience4j:
 # OpenAPI
 springdoc:
   api-docs:
-    path: /api-docs
+    enabled: true
+    path: /v3/api-docs
   swagger-ui:
+    enabled: true
     path: /swagger-ui.html
     operations-sorter: method
+    tags-sorter: alpha
+    doc-expansion: none
+    urls-primary-name: all
+  show-actuator: false
+  group-configs:
+    - group: all
+      paths-to-match: /**
 
 ---
 spring:

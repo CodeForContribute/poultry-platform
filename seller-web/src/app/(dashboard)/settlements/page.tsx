@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Wallet, ArrowDownToLine, Calendar, Loader2, Building2, CreditCard } from "lucide-react";
+import { Wallet, ArrowDownToLine, Calendar, Loader2, Building2, CreditCard, Download, FileText, FileSpreadsheet, MoreHorizontal } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,8 +25,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useSettlements } from "@/lib/hooks/useSettlements";
+import * as settlementsApi from "@/lib/api/settlements";
 import type { SettlementStatus } from "@/types";
 
 const statusColors: Record<SettlementStatus, string> = {
@@ -63,6 +71,30 @@ export default function SettlementsPage() {
   const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [selectedBankAccount, setSelectedBankAccount] = useState("");
+  const [exportingId, setExportingId] = useState<string | null>(null);
+
+  const handleExport = async (settlementId: string, settlementNumber: string, exportFormat: "pdf" | "csv") => {
+    try {
+      setExportingId(settlementId);
+      const blob = await settlementsApi.exportSettlement(settlementId, exportFormat);
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${settlementNumber}.${exportFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success(`Settlement exported as ${exportFormat.toUpperCase()}`);
+    } catch (error) {
+      toast.error(`Failed to export settlement: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setExportingId(null);
+    }
+  };
 
   const handleWithdraw = () => {
     if (!withdrawAmount || !selectedBankAccount) return;
@@ -330,6 +362,9 @@ export default function SettlementsPage() {
                       <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
                         Bank Account
                       </th>
+                      <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -375,6 +410,37 @@ export default function SettlementsPage() {
                               </div>
                             </div>
                           </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={exportingId === settlement.id}
+                              >
+                                {exportingId === settlement.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <MoreHorizontal className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => handleExport(settlement.id, settlement.settlementNumber, "pdf")}
+                              >
+                                <FileText className="mr-2 h-4 w-4" />
+                                Export as PDF
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleExport(settlement.id, settlement.settlementNumber, "csv")}
+                              >
+                                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                Export as CSV
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       </tr>
                     ))}

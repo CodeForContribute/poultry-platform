@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,6 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ImageUpload, ImageFile } from "@/components/ui/image-upload";
+import { PriceHistory } from "@/components/products/price-history";
 import * as productsApi from "@/lib/api/products";
 import type { ProductUnit, ProductStatus } from "@/types";
 
@@ -73,6 +75,7 @@ export default function EditProductPage() {
     minQty: 10,
     discountPercent: 5,
   });
+  const [images, setImages] = useState<ImageFile[]>([]);
 
   const {
     data: product,
@@ -89,6 +92,32 @@ export default function EditProductPage() {
     },
     enabled: !!productId,
   });
+
+  // Fetch product images
+  const { data: productImages } = useQuery({
+    queryKey: ["product-images", productId],
+    queryFn: async () => {
+      const response = await productsApi.getProductImages(productId);
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return [];
+    },
+    enabled: !!productId,
+  });
+
+  // Update images state when productImages are fetched
+  useEffect(() => {
+    if (productImages) {
+      setImages(
+        productImages.map((img) => ({
+          id: img.id,
+          url: img.url,
+          name: `Product image ${img.displayOrder || 1}`,
+        }))
+      );
+    }
+  }, [productImages]);
 
   const {
     register,
@@ -207,6 +236,34 @@ export default function EditProductPage() {
   const removeBulkDiscount = (index: number) => {
     setBulkDiscounts(bulkDiscounts.filter((_, i) => i !== index));
   };
+
+  // Image upload handler
+  const handleImageUpload = useCallback(
+    async (file: File): Promise<{ url: string; id: string }> => {
+      const response = await productsApi.uploadProductImage(productId, file);
+      if (response.success && response.data) {
+        queryClient.invalidateQueries({ queryKey: ["product-images", productId] });
+        toast.success("Image uploaded successfully");
+        return { url: response.data.url, id: response.data.id };
+      }
+      throw new Error(response.message || "Failed to upload image");
+    },
+    [productId, queryClient]
+  );
+
+  // Image delete handler
+  const handleImageDelete = useCallback(
+    async (imageId: string): Promise<void> => {
+      const response = await productsApi.deleteProductImage(productId, imageId);
+      if (response.success) {
+        queryClient.invalidateQueries({ queryKey: ["product-images", productId] });
+        toast.success("Image deleted successfully");
+      } else {
+        throw new Error(response.message || "Failed to delete image");
+      }
+    },
+    [productId, queryClient]
+  );
 
   if (isProductLoading) {
     return (
@@ -335,6 +392,22 @@ export default function EditProductPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Product Images */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Product Images</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ImageUpload
+                  value={images}
+                  onChange={setImages}
+                  onUpload={handleImageUpload}
+                  onDelete={handleImageDelete}
+                  maxImages={10}
+                />
               </CardContent>
             </Card>
 
@@ -497,6 +570,9 @@ export default function EditProductPage() {
               Update Pricing
             </Button>
           </form>
+
+          {/* Price History */}
+          <PriceHistory productId={productId} />
         </div>
       </div>
     </div>

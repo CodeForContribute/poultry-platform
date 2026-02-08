@@ -135,3 +135,12 @@ export async function deleteProductImage(
   );
   return response.data;
 }
+
+export async function getProductImages(
+  productId: string
+): Promise<ApiResponse<ProductImage[]>> {
+  const response = await apiClient.get<ApiResponse<ProductImage[]>>(
+    `/seller/products/${productId}/images`
+  );
+  return response.data;
+}

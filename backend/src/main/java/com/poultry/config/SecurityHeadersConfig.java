@@ -100,6 +100,12 @@ public class SecurityHeadersConfig {
         }
 
         @Override
+        protected boolean shouldNotFilter(HttpServletRequest request) {
+            String path = request.getServletPath();
+            return path.contains("/swagger") || path.contains("/api-docs") || path.contains("/webjars");
+        }
+
+        @Override
         protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                         FilterChain filterChain) throws ServletException, IOException {
 
@@ -155,9 +161,18 @@ public class SecurityHeadersConfig {
 
             // Additional security headers
             response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
-            response.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
-            response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-            response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+
+            // Only add restrictive cross-origin headers for same-origin requests
+            // Skip for CORS requests to allow cross-origin API access
+            String origin = request.getHeader("Origin");
+            if (origin == null || origin.isEmpty()) {
+                response.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+                response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+                response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+            } else {
+                // For cross-origin requests, use more permissive policy
+                response.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+            }
         }
 
         private boolean isApiEndpoint(HttpServletRequest request) {

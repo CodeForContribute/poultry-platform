@@ -124,9 +124,10 @@ export default function CreateProductPage() {
       return productsApi.createProduct(request);
     },
     onSuccess: (response) => {
-      if (response.success) {
-        toast.success("Product created successfully");
-        router.push("/products");
+      if (response.success && response.data) {
+        toast.success("Product created successfully. You can now add images.");
+        // Redirect to edit page to allow image uploads
+        router.push(`/products/${response.data.id}/edit`);
       } else {
         toast.error(response.message || "Failed to create product");
       }

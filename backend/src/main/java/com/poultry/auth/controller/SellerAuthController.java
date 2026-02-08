@@ -5,6 +5,7 @@ import com.poultry.auth.security.UserPrincipal;
 import com.poultry.auth.service.SellerAuthService;
 import com.poultry.common.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -59,6 +60,16 @@ public class SellerAuthController {
 
         sellerAuthService.logout(principal.getId(), refreshToken);
         return ResponseEntity.ok(ApiResponse.success(null, "Logged out successfully"));
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "Get current user", description = "Get current authenticated seller user info")
+    @SecurityRequirement(name = "bearerAuth")
+    public ResponseEntity<ApiResponse<UserInfoResponse>> getCurrentUser(
+            @AuthenticationPrincipal UserPrincipal principal) {
+
+        UserInfoResponse userInfo = sellerAuthService.getCurrentUser(principal.getId());
+        return ResponseEntity.ok(ApiResponse.success(userInfo));
     }
 
     private String getClientIp(HttpServletRequest request) {

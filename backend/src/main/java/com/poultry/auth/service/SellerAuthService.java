@@ -8,6 +8,8 @@ import com.poultry.auth.repository.SellerUserRepository;
 import com.poultry.auth.security.JwtService;
 import com.poultry.common.exception.BusinessException;
 import com.poultry.common.util.EncryptionUtil;
+import com.poultry.product.entity.Seller;
+import com.poultry.product.repository.SellerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +30,7 @@ public class SellerAuthService {
 
     private final SellerUserRepository sellerUserRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final SellerRepository sellerRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuditService auditService;
@@ -236,5 +239,29 @@ public class SellerAuthService {
                 .expiresAt(jwtService.getRefreshTokenExpiry())
                 .build();
         refreshTokenRepository.save(refreshToken);
+    }
+
+    @Transactional(readOnly = true)
+    public UserInfoResponse getCurrentUser(UUID userId) {
+        SellerUser user = sellerUserRepository.findById(userId)
+                .orElseThrow(() -> BusinessException.notFound("User", userId));
+
+        String businessName = sellerRepository.findById(user.getSellerId())
+                .map(Seller::getBusinessName)
+                .orElse(null);
+
+        boolean mustChangePassword = user.getMustChangePassword()
+                || user.isPasswordExpired(passwordRotationDays);
+
+        return UserInfoResponse.builder()
+                .userId(user.getId())
+                .userType("SELLER_USER")
+                .name(user.getName())
+                .email(user.getEmail())
+                .role(user.getRole().name())
+                .sellerId(user.getSellerId())
+                .businessName(businessName)
+                .mustChangePassword(mustChangePassword)
+                .build();
     }
 }

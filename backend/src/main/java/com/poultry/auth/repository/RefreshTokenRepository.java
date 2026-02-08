@@ -31,4 +31,8 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
     @Modifying
     @Query("DELETE FROM RefreshToken rt WHERE rt.expiresAt < :cutoff")
     int deleteExpiredTokens(Instant cutoff);
+
+    @Query("SELECT COUNT(rt) FROM RefreshToken rt WHERE rt.userId = :userId " +
+            "AND rt.userType = :userType AND rt.revoked = false AND rt.expiresAt > :now")
+    long countActiveTokens(UUID userId, String userType, Instant now);
 }

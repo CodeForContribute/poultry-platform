@@ -93,7 +93,7 @@ public class OpenApiConfig {
     @Bean
     public GroupedOpenApi buyerApi() {
         return GroupedOpenApi.builder()
-                .group("1. Buyer API")
+                .group("buyer")
                 .displayName("Buyer API")
                 .pathsToMatch(
                         "/v1/auth/buyer/**",
@@ -117,7 +117,7 @@ public class OpenApiConfig {
     @Bean
     public GroupedOpenApi sellerApi() {
         return GroupedOpenApi.builder()
-                .group("2. Seller API")
+                .group("seller")
                 .displayName("Seller API")
                 .pathsToMatch(
                         "/v1/auth/seller/**",
@@ -136,7 +136,7 @@ public class OpenApiConfig {
     @Bean
     public GroupedOpenApi adminApi() {
         return GroupedOpenApi.builder()
-                .group("3. Admin API")
+                .group("admin")
                 .displayName("Admin API")
                 .pathsToMatch(
                         "/v1/admin/**"
@@ -151,7 +151,7 @@ public class OpenApiConfig {
     @Bean
     public GroupedOpenApi webhookApi() {
         return GroupedOpenApi.builder()
-                .group("4. Webhooks")
+                .group("webhooks")
                 .displayName("Webhooks")
                 .pathsToMatch(
                         "/v1/webhooks/**"

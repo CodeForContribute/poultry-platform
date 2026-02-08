@@ -39,7 +39,7 @@ public class RefreshToken {
     @Column(name = "device_info", columnDefinition = "jsonb")
     private Map<String, Object> deviceInfo;
 
-    @Column(name = "ip_address", columnDefinition = "inet")
+    @Column(name = "ip_address")
     private String ipAddress;
 
     @Column(name = "expires_at", nullable = false)

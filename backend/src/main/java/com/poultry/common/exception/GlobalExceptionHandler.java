@@ -87,7 +87,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(
-            Exception ex, HttpServletRequest request) {
+            Exception ex, HttpServletRequest request) throws Exception {
+        // Let springdoc/swagger exceptions propagate for proper API docs generation
+        String uri = request.getRequestURI();
+        if (uri.contains("/api-docs") || uri.contains("/swagger")) {
+            throw ex;
+        }
         log.error("Unexpected error at {}: ", request.getRequestURI(), ex);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
