@@ -46,22 +46,12 @@ export function useSettlements(): SettlementsViewModel {
   } = useQuery<Settlement[], Error>({
     queryKey: ["seller-settlements", statusFilter, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
-      // Use mock data for now - replace with real API when backend ready
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      let data = settlementsApi.getMockSettlements();
-
-      // Apply filters
-      if (statusFilter !== "ALL") {
-        data = data.filter((s) => s.status === statusFilter);
-      }
-      if (startDate) {
-        data = data.filter((s) => new Date(s.createdAt) >= startDate);
-      }
-      if (endDate) {
-        data = data.filter((s) => new Date(s.createdAt) <= endDate);
-      }
-
-      return data;
+      const response = await settlementsApi.getSettlements({
+        status: statusFilter !== "ALL" ? statusFilter : undefined,
+        startDate: startDate?.toISOString(),
+        endDate: endDate?.toISOString(),
+      });
+      return response.data.content;
     },
   });
 
@@ -72,8 +62,8 @@ export function useSettlements(): SettlementsViewModel {
   } = useQuery<WalletBalance, Error>({
     queryKey: ["seller-wallet"],
     queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      return settlementsApi.getMockWalletBalance();
+      const response = await settlementsApi.getWalletBalance();
+      return response.data;
     },
   });
 
@@ -84,8 +74,8 @@ export function useSettlements(): SettlementsViewModel {
   } = useQuery<BankAccount[], Error>({
     queryKey: ["seller-bank-accounts-settlements"],
     queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      return settlementsApi.getMockBankAccounts();
+      const response = await settlementsApi.getBankAccounts();
+      return response.data;
     },
   });
 

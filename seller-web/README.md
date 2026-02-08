@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Seller Dashboard
+
+Web dashboard for poultry sellers to manage orders, products, settlements, and business analytics.
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router) with React 19
+- **Language:** TypeScript 5
+- **Styling:** Tailwind CSS 4, Radix UI primitives, shadcn/ui patterns
+- **State:** Zustand for auth/global state, TanStack React Query for server state
+- **Forms:** React Hook Form + Zod validation
+- **Charts:** Recharts
+- **HTTP:** Axios with JWT auth interceptors
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create `.env.local`:
 
-## Learn More
+```
+NEXT_PUBLIC_API_URL=http://localhost:8082/api
+```
 
-To learn more about Next.js, take a look at the following resources:
+The backend must be running on port 8082. See the root [SETUP.md](../SETUP.md) for full instructions.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Pages
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Route | Description |
+|-------|-------------|
+| `/login` | Seller authentication |
+| `/forgot-password` | Password recovery |
+| `/reset-password` | Password reset |
+| `/` | Dashboard home (redirects) |
+| `/orders` | Order management |
+| `/products` | Product catalog |
+| `/settlements` | Settlements, wallet, and payouts |
+| `/analytics` | Business analytics |
+| `/disputes` | Dispute management |
+| `/settings` | Profile, bank accounts, notifications, security |
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run dev       # Development server
+npm run build     # Production build
+npm run start     # Start production server
+npm run lint      # ESLint
+npm test          # Jest tests
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+```
+src/
+  app/            Next.js App Router pages and layouts
+  components/     UI components (dashboard, shared, ui primitives)
+  lib/
+    api/          API client and endpoint modules
+    hooks/        React Query hooks (useOrders, useSettlements, etc.)
+    store/        Zustand stores (auth)
+    errors.ts     Error handling utilities
+  types/          TypeScript type definitions
+```
